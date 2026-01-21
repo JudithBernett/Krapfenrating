@@ -132,15 +132,25 @@ server <- function(input, output, session) {
   output$avgPlot <- renderPlot({
     rt <- copy(ratings_transposed())
     r <- copy(ratings())
-    rt[, Summed_Rating := rowSums(.SD) / .N]
+    rt[, Summed_Rating := rowSums(.SD) / length(colnames(rt))]
     rt[, Krapfen := colnames(r)]
     
     rt <- rt[order(-Summed_Rating)]
     rt[, Krapfen := factor(Krapfen, levels = Krapfen)]
+
+    # compute standard deviation of Summed Rating
+    rt[, SD_Rating := apply(.SD, 1, sd, na.rm = TRUE), .SDcols= colnames(ratings_transposed())]
     
-    ggplot(rt, aes(x = Krapfen, y = Summed_Rating)) +
-      geom_point(size = 3) +
+    ggplot(rt, aes(x = Krapfen, y = Summed_Rating, color=Krapfen)) +
+      geom_point(size = 5) +
+      # add errorbars
+      geom_errorbar(aes(ymin = Summed_Rating - SD_Rating,
+                        ymax = Summed_Rating + SD_Rating),
+                    width = 0.2) +
       theme_minimal() +
+      ylim(1, 10) +
+      # add y axis ticks at every integer
+      scale_y_continuous(breaks = seq(1, 10, by = 1)) +
       labs(
         title = "Average Krapfen Ratings",
         x = "Krapfen",
