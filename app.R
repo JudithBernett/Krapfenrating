@@ -8,13 +8,20 @@ ui <- fluidPage(
   
   sidebarLayout(
     sidebarPanel(
-      helpText("Explore correlations and average ratings of different Krapfen.")
+      helpText("Explore correlations and average ratings of different Krapfen."),
     ),
     
     mainPanel(
       tabsetPanel(
         tabPanel(
           "Krapfen Similarity",
+          shinyWidgets::switchInput(
+            inputId = "corr_method_switch",
+            label = "Switch Correlation",
+            onLabel = "Spearman",
+            offLabel = "Pearson",
+            value = FALSE
+          ),
           plotOutput("corrPlot", height = "1000px")
         ),
         tabPanel(
@@ -48,7 +55,13 @@ server <- function(input, output, session) {
   # --- Correlation plot -----------------------------------------------------
   output$corrPlot <- renderPlot({
     rt <- ratings_transposed()
-    corr_matrix <- cor(rt, method = "pearson")
+    corr_method <- ifelse(input$corr_method_switch, "spearman", "pearson")
+    
+    corr_matrix <- cor(
+      rt,
+      method = corr_method,
+      use = "pairwise.complete.obs"
+    )
     
     corrplot(
       corr_matrix,
