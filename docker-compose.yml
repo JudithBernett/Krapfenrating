@@ -1,0 +1,6 @@
+services:
+  krapfen:
+    ports:
+      - "8024:3838"
+    image: ghcr.io/judithbernett/krapfenrating:docker-build
+
