@@ -28,6 +28,13 @@ ui <- fluidPage(
       tabsetPanel(
         tabPanel(
           "Krapfen Similarity",
+          
+          # Krapfen logo above the plot
+          tags$div(
+            style = "text-align:center;display:block; margin-left:auto; margin-right:auto; margin-bottom:20px;",
+            tags$img(src = "Krapfenlogo.png", height = "200px", style = "max-width: 100%;") 
+          ),
+          
           shinyWidgets::switchInput(
             inputId = "corr_method_switch",
             label = "Switch Correlation",
