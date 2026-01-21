@@ -1,8 +1,10 @@
 library(shiny)
 library(shinyjs)
+library(shinyWidgets)
 library(data.table)
 library(corrplot)
 library(ggplot2)
+source("posterior.R")
 
 ui <- fluidPage(
   useShinyjs(),
@@ -20,7 +22,6 @@ ui <- fluidPage(
       )
     )
   ),
-  
   uiOutput("app_content")
 )
 
@@ -45,6 +46,7 @@ server <- function(input, output, session) {
   
   # Load data (reactive to refresh after submissions) --------------------
   rating_table <- reactiveVal(fread(csv_file))
+  expert_data <- fread(file.path(data_dir,"real_ratings.csv"))
   
   # Reactive value to track if user has submitted/exists
   user_authenticated <- reactiveVal(FALSE)
@@ -88,6 +90,20 @@ server <- function(input, output, session) {
       # Show rating page for new users or users who want to rate
       uiOutput("ratings_page")
     } else if (user_authenticated() && !is_new_user()) {
+      # --- Update picker choices dynamically ---
+      observe({
+        # filter rating table to remove columns with NAs
+        expert_data_cp <- copy(expert_data)
+        expert_data_cp <- expert_data_cp[, lapply(.SD, function(col) {
+          if (all(is.na(col))) {
+            NULL
+          } else {
+            col
+          }
+        })]
+        k_names <- colnames(expert_data_cp)[-1]   # remove Rater column
+        updatePickerInput(session, "selected_krapfen", choices = k_names, selected = k_names[1])
+      })
       # Show visualizations after rating is submitted or for existing users viewing results
       sidebarLayout(
         sidebarPanel(
@@ -113,12 +129,13 @@ server <- function(input, output, session) {
           tabsetPanel(
             tabPanel(
               "Krapfen Similarity",
+              
               # Krapfen logo above the plot
               tags$div(
                 style = "text-align:center;display:block; margin-left:auto; margin-right:auto; margin-bottom:20px;",
                 tags$img(src = "Krapfenlogo.png", height = "300px", style = "max-width: 100%;") 
               ),
-
+              
               shinyWidgets::switchInput(
                 inputId = "corr_method_switch",
                 label = "Switch Correlation",
@@ -131,6 +148,22 @@ server <- function(input, output, session) {
             tabPanel(
               "Average Ratings",
               plotOutput("avgPlot", height = "1000px")
+            ),
+            tabPanel(
+              "Posterior Distribution",
+              
+              # Picker to select Krapfen
+              pickerInput(
+                inputId = "selected_krapfen",
+                label = "Select Krapfen:",
+                choices = NULL,  # will update in server
+                selected = "Krapfen",
+                options = list(`live-search` = TRUE)
+              ),
+              
+              # Toggle correlation method (optional, can skip here)
+              
+              plotOutput("posteriorPlot", height = "500px")
             )
           )
         )
@@ -419,29 +452,26 @@ server <- function(input, output, session) {
   output$avgPlot <- renderPlot({
     rt <- copy(ratings_transposed())
     r <- copy(ratings())
-    
-    # Get all column names except Rater to get krapfen names
-    all_cols <- names(r)
-    all_krapfen <- all_cols[all_cols != "Rater"]
-    
-    # Calculate average rating for each krapfen (each row in transposed data)
-    rt[, Summed_Rating := rowMeans(.SD, na.rm = TRUE)]
-    
-    # Assign krapfen names - should match number of rows
-    if (nrow(rt) == length(all_krapfen)) {
-      rt[, Krapfen := all_krapfen]
-    } else {
-      # Fallback: use row indices if there's a mismatch
-      rt[, Krapfen := paste0("Krapfen_", seq_len(nrow(rt)))]
-    }
+    rt[, Summed_Rating := rowSums(.SD) / length(colnames(rt))]
+    rt[, Krapfen := colnames(r)]
     
     # Sort by rating
     rt <- rt[order(-Summed_Rating)]
     rt[, Krapfen := factor(Krapfen, levels = Krapfen)]
+
+    # compute standard deviation of Summed Rating
+    rt[, SD_Rating := apply(.SD, 1, sd, na.rm = TRUE), .SDcols= colnames(ratings_transposed())]
     
-    ggplot(rt, aes(x = Krapfen, y = Summed_Rating)) +
-      geom_point(size = 3) +
+    ggplot(rt, aes(x = Krapfen, y = Summed_Rating, color=Krapfen)) +
+      geom_point(size = 5) +
+      # add errorbars
+      geom_errorbar(aes(ymin = Summed_Rating - SD_Rating,
+                        ymax = Summed_Rating + SD_Rating),
+                    width = 0.2) +
       theme_minimal() +
+      ylim(1, 10) +
+      # add y axis ticks at every integer
+      scale_y_continuous(breaks = seq(1, 10, by = 1)) +
       labs(
         title = "Average Krapfen Ratings",
         x = "Krapfen",
@@ -449,6 +479,21 @@ server <- function(input, output, session) {
       ) +
       theme(axis.text.x = element_text(angle = 90, hjust = 1),
             text = element_text(size = 16))
+  })
+  
+  # --- Render posterior plot ---
+  output$posteriorPlot <- renderPlot({
+    req(input$selected_krapfen)
+    
+    krapfen <- input$selected_krapfen
+    
+    # survey data for selected krapfen
+    survey_vec <- rating_table()[[krapfen]]
+    
+    # expert data
+    expert_vec <- as.numeric(expert_data[[krapfen]])
+    
+    plot_comparison(survey_vec, expert_vec)
   })
 }
 

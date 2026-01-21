@@ -1,14 +1,13 @@
-version: '3.8'
-
 services:
   krapfen-app:
     build: .
     ports:
-      - "3838:3838"
+      - "8024:3838"
     volumes:
       - krapfen-data:/srv/shiny-server/krapfen/data
     environment:
       - R_PROFILE=/srv/shiny-server/krapfen/.Rprofile
+    image: ghcr.io/judithbernett/krapfenrating:docker-build
 
 volumes:
   krapfen-data:
