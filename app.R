@@ -20,6 +20,16 @@ server <- function(input, output, session) {
   }
   csv_file <- file.path(data_dir, "KrapfenRating.csv")
   
+  # Initialize data file if it doesn't exist
+  if (!file.exists(csv_file)) {
+    # Try to copy from root if it exists there
+    if (file.exists("KrapfenRating.csv")) {
+      file.copy("KrapfenRating.csv", csv_file)
+    } else {
+      stop("KrapfenRating.csv not found in root or data directory. Please add the CSV file.")
+    }
+  }
+  
   # Load data (reactive to refresh after submissions) --------------------
   rating_table <- reactiveVal(fread(csv_file))
   
@@ -27,6 +37,7 @@ server <- function(input, output, session) {
   user_authenticated <- reactiveVal(FALSE)
   current_rater <- reactiveVal("")
   is_new_user <- reactiveVal(FALSE)
+  new_user_submitted <- reactiveVal(FALSE)
   
   ratings <- reactive({
     rating_table()
@@ -184,11 +195,14 @@ server <- function(input, output, session) {
     } else {
       intro_text <- p(
         style = "color: #007bff; font-weight: bold;",
-        "Welcome! Please rate each Krapfen on a scale of 1-10."
+        "Welcome! How would you think these Krapfen taste based on how they look and sound? Please rate each Krapfen on a scale of 1-10."
       )
     }
     
     rating_divs <- lapply(krapfen, function(k) {
+      # Use krapfen name directly as image filename with .png extension
+      img_path <- paste0(k, ".png")
+      
       div(
         style = "margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;",
         div(
@@ -196,10 +210,10 @@ server <- function(input, output, session) {
           div(
             style = "flex-shrink: 0;",
             img(
-              src = sprintf("https://via.placeholder.com/150?text=%s", gsub(" ", "+", k)),
+              src = img_path,
               width = "150px",
               height = "150px",
-              style = "border-radius: 5px;"
+              style = "border-radius: 5px; object-fit: cover;"
             )
           ),
           div(
@@ -228,29 +242,40 @@ server <- function(input, output, session) {
       return(NULL)
     }
     
-    div(
-      style = "padding: 20px;",
-      h3(paste("Rate Krapfen as", current_rater())),
-      uiOutput("rating_inputs"),
-      br(),
+    # Create button list based on whether it's a new user and if they've submitted
+    buttons <- list(
       actionButton(
         inputId = "submit_ratings",
         label = "Submit Ratings",
         class = "btn-primary",
         style = "padding: 10px 20px; font-size: 16px;"
-      ),
-      actionButton(
+      )
+    )
+    
+    # Only show "View Results" button if it's an existing user OR new user has submitted
+    if (!is_new_user() || new_user_submitted()) {
+      buttons[[2]] <- actionButton(
         inputId = "view_results_btn",
         label = "View Results",
         class = "btn-info",
         style = "padding: 10px 20px; font-size: 16px; margin-left: 10px;"
-      ),
-      actionButton(
-        inputId = "cancel_ratings",
-        label = "Logout",
-        class = "btn-secondary",
-        style = "padding: 10px 20px; font-size: 16px; margin-left: 10px;"
-      ),
+      )
+    }
+    
+    # Add logout button
+    buttons[[length(buttons) + 1]] <- actionButton(
+      inputId = "cancel_ratings",
+      label = "Logout",
+      class = "btn-secondary",
+      style = "padding: 10px 20px; font-size: 16px; margin-left: 10px;"
+    )
+    
+    div(
+      style = "padding: 20px;",
+      h3(paste("Rate Krapfen as", current_rater())),
+      uiOutput("rating_inputs"),
+      br(),
+      do.call(tagList, buttons),
       div(id = "submit_message", style = "margin-top: 20px;")
     )
   })
@@ -303,7 +328,8 @@ server <- function(input, output, session) {
     # Update reactive data table
     rating_table(current_data)
     
-    # Mark user as no longer new - they can now see results
+    # Mark submission and user as no longer new (for existing users who re-rate)
+    new_user_submitted(TRUE)
     is_new_user(FALSE)
   })
   
@@ -311,6 +337,7 @@ server <- function(input, output, session) {
   observeEvent(input$logout_btn, {
     user_authenticated(FALSE)
     is_new_user(FALSE)
+    new_user_submitted(FALSE)
     current_rater("")
     updateTextInput(session, "rater_name", value = "")
   })
@@ -319,6 +346,7 @@ server <- function(input, output, session) {
   observeEvent(input$cancel_ratings, {
     user_authenticated(FALSE)
     is_new_user(FALSE)
+    new_user_submitted(FALSE)
     current_rater("")
     updateTextInput(session, "rater_name", value = "")
   })
