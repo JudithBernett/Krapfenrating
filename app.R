@@ -6,8 +6,22 @@ library(ggplot2)
 ui <- fluidPage(
   titlePanel("Krapfen Rating Explorer 🍩"),
   
+  # --- Feature request badge ---
+  tags$div(
+    style = "margin-bottom: 15px;",
+    tags$a(
+      href = "https://github.com/JudithBernett/Krapfenrating",
+      target = "_blank",
+      tags$img(
+        src = "https://img.shields.io/badge/Feature%20Request-GitHub-blue?logo=github",
+        alt = "Feature request on GitHub"
+      )
+    )
+  ),
+  
   sidebarLayout(
     sidebarPanel(
+      width = 2,
       helpText("Explore correlations and average ratings of different Krapfen."),
     ),
     
@@ -15,6 +29,13 @@ ui <- fluidPage(
       tabsetPanel(
         tabPanel(
           "Krapfen Similarity",
+          
+          # Krapfen logo above the plot
+          tags$div(
+            style = "text-align:center;display:block; margin-left:auto; margin-right:auto; margin-bottom:20px;",
+            tags$img(src = "Krapfenlogo.png", height = "300px", style = "max-width: 100%;") 
+          ),
+          
           shinyWidgets::switchInput(
             inputId = "corr_method_switch",
             label = "Switch Correlation",
