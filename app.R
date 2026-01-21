@@ -91,6 +91,7 @@ server <- function(input, output, session) {
       # Show visualizations after rating is submitted or for existing users viewing results
       sidebarLayout(
         sidebarPanel(
+          width = 2,
           helpText("Explore correlations and average ratings of different Krapfen."),
           br(),
           actionButton(
@@ -112,6 +113,12 @@ server <- function(input, output, session) {
           tabsetPanel(
             tabPanel(
               "Krapfen Similarity",
+              # Krapfen logo above the plot
+              tags$div(
+                style = "text-align:center;display:block; margin-left:auto; margin-right:auto; margin-bottom:20px;",
+                tags$img(src = "Krapfenlogo.png", height = "300px", style = "max-width: 100%;") 
+              ),
+
               shinyWidgets::switchInput(
                 inputId = "corr_method_switch",
                 label = "Switch Correlation",
