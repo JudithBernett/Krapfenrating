@@ -24,6 +24,9 @@ RUN chown -R shiny:shiny /srv/shiny-server
 
 RUN echo "options(shiny.maxRequestSize=5000*1024^2)" > .Rprofile
 
+# Create a volume mount point for persistent data
+VOLUME ["/srv/shiny-server/krapfen/data"]
+
 EXPOSE 3838
 
 CMD ["R", "-e", "shiny::runApp(host = '0.0.0.0', port = 3838)"]
