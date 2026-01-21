@@ -1,7 +1,9 @@
 library(shiny)
+library(shinyWidgets)
 library(data.table)
 library(corrplot)
 library(ggplot2)
+source("posterior.R")
 
 ui <- fluidPage(
   titlePanel("Krapfen Rating Explorer 🍩"),
@@ -48,6 +50,22 @@ ui <- fluidPage(
         tabPanel(
           "Average Ratings",
           plotOutput("avgPlot", height = "1000px")
+        ),
+        tabPanel(
+          "Posterior Distribution",
+          
+          # Picker to select Krapfen
+          pickerInput(
+            inputId = "selected_krapfen",
+            label = "Select Krapfen:",
+            choices = NULL,  # will update in server
+            selected = "Krapfen",
+            options = list(`live-search` = TRUE)
+          ),
+          
+          # Toggle correlation method (optional, can skip here)
+          
+          plotOutput("posteriorPlot", height = "500px")
         )
       )
     )
@@ -58,8 +76,24 @@ server <- function(input, output, session) {
   
   # --- Load data ------------------------------------------------------------
   rating_table <- fread("KrapfenRating.csv")
+  expert_data <- fread("real_ratings.csv")
   ratings <- reactive({
     rating_table
+  })
+  
+  # --- Update picker choices dynamically ---
+  observe({
+    # filter rating table to remove columns with NAs
+    expert_data_cp <- copy(expert_data)
+    expert_data_cp <- expert_data_cp[, lapply(.SD, function(col) {
+      if (all(is.na(col))) {
+        NULL
+      } else {
+        col
+      }
+    })]
+    k_names <- colnames(expert_data_cp)[-1]   # remove Rater column
+    updatePickerInput(session, "selected_krapfen", choices = k_names)
   })
   
   # --- Transpose ratings ----------------------------------------------------
@@ -114,6 +148,21 @@ server <- function(input, output, session) {
       ) +
       theme(axis.text.x = element_text(angle = 90, hjust = 1),
             text = element_text(size = 16))
+  })
+  
+  # --- Render posterior plot ---
+  output$posteriorPlot <- renderPlot({
+    req(input$selected_krapfen)
+    
+    krapfen <- input$selected_krapfen
+    
+    # survey data for selected krapfen
+    survey_vec <- rating_table[[krapfen]]
+    
+    # expert data
+    expert_vec <- as.numeric(expert_data[[krapfen]])
+    
+    plot_comparison(survey_vec, expert_vec)
   })
 }
 
