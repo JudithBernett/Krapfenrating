@@ -8,6 +8,19 @@ ui <- fluidPage(
   useShinyjs(),
   titlePanel("Krapfen Rating Explorer 🍩"),
   
+  # --- Feature request badge ---
+  tags$div(
+    style = "margin-bottom: 15px;",
+    tags$a(
+      href = "https://github.com/JudithBernett/Krapfenrating",
+      target = "_blank",
+      tags$img(
+        src = "https://img.shields.io/badge/Feature%20Request-GitHub-blue?logo=github",
+        alt = "Feature request on GitHub"
+      )
+    )
+  ),
+  
   uiOutput("app_content")
 )
 
