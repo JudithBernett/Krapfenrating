@@ -21,6 +21,7 @@ ui <- fluidPage(
   
   sidebarLayout(
     sidebarPanel(
+      width = 2,
       helpText("Explore correlations and average ratings of different Krapfen."),
     ),
     
@@ -32,7 +33,7 @@ ui <- fluidPage(
           # Krapfen logo above the plot
           tags$div(
             style = "text-align:center;display:block; margin-left:auto; margin-right:auto; margin-bottom:20px;",
-            tags$img(src = "Krapfenlogo.png", height = "200px", style = "max-width: 100%;") 
+            tags$img(src = "Krapfenlogo.png", height = "300px", style = "max-width: 100%;") 
           ),
           
           shinyWidgets::switchInput(
