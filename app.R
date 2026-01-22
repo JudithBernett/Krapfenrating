@@ -10,6 +10,14 @@ library(grid)
 source("posterior.R")
 
 ui <- fluidPage(
+  tags$head(
+    tags$link(
+      rel = "icon",
+      type = "image/x-icon",
+      href = "favicon.ico"
+    )
+  ),
+  
   useShinyjs(),
   titlePanel("Krapfen Rating Explorer 🍩"),
   
@@ -198,6 +206,19 @@ server <- function(input, output, session) {
           ),
           tabPanel(
             "Posterior Distribution",
+            
+            # Link to theoretical groundwork
+            tags$div(
+              style = "margin-bottom: 10px;",
+              tags$a(
+                href = "https://github.com/JudithBernett/Krapfenrating/blob/main/paper.pdf",
+                target = "_blank",
+                tags$img(
+                  src = "https://img.shields.io/badge/Theoretical%20Groundwork-PDF-informational",
+                  alt = "Theoretical groundwork"
+                )
+              )
+            ),
             
             # Picker to select Krapfen
             pickerInput(
