@@ -4,6 +4,9 @@ library(shinyWidgets)
 library(data.table)
 library(corrplot)
 library(ggplot2)
+library(png)
+library(grid)
+
 source("posterior.R")
 
 ui <- fluidPage(
@@ -54,6 +57,14 @@ server <- function(input, output, session) {
   is_new_user <- reactiveVal(FALSE)
   new_user_submitted <- reactiveVal(FALSE)
   
+  # which view of the app is active?
+  app_mode <- reactiveVal("view")  
+  # values: "view", "rate_all", "rate_single"
+  
+  available_krapfen <- reactiveVal(
+    get_viable_krapfen_options(copy(expert_data))
+  )
+  
   ratings <- reactive({
     rating_table()
   })
@@ -86,116 +97,126 @@ server <- function(input, output, session) {
   
   # --- Render app content conditionally ------------------------------------
   output$app_content <- renderUI({
-    if (user_authenticated() && is_new_user()) {
-      # Show rating page for new users or users who want to rate
-      uiOutput("ratings_page")
-    } else if (user_authenticated() && !is_new_user()) {
-      # --- Update picker choices dynamically ---
-      observe({
-        # filter rating table to remove columns with NAs
-        expert_data_cp <- copy(expert_data)
-        expert_data_cp <- expert_data_cp[, lapply(.SD, function(col) {
-          if (all(is.na(col))) {
-            NULL
-          } else {
-            col
-          }
-        })]
-        k_names <- colnames(expert_data_cp)[-1]   # remove Rater column
-        updatePickerInput(session, "selected_krapfen", choices = k_names, selected = k_names[1])
-      })
-      # Show visualizations after rating is submitted or for existing users viewing results
-      sidebarLayout(
-        sidebarPanel(
-          width = 2,
-          helpText("Explore correlations and average ratings of different Krapfen."),
-          br(),
-          actionButton(
-            inputId = "back_to_rating_btn",
-            label = paste("Back to Rating (", current_rater(), ")", sep = ""),
-            class = "btn-secondary",
-            style = "width: 100%;"
-          ),
-          br(),
-          br(),
-          actionButton(
-            inputId = "logout_btn",
-            label = "Logout",
-            class = "btn-danger",
-            style = "width: 100%;"
-          )
-        ),
-        mainPanel(
-          tabsetPanel(
-            tabPanel(
-              "Krapfen Similarity",
-              
-              # Krapfen logo above the plot
-              tags$div(
-                style = "text-align:center;display:block; margin-left:auto; margin-right:auto; margin-bottom:20px;",
-                tags$img(src = "Krapfenlogo.png", height = "300px", style = "max-width: 100%;") 
-              ),
-              
-              shinyWidgets::switchInput(
-                inputId = "corr_method_switch",
-                label = "Switch Correlation",
-                onLabel = "Spearman",
-                offLabel = "Pearson",
-                value = FALSE
-              ),
-              plotOutput("corrPlot", height = "1000px")
-            ),
-            tabPanel(
-              "Average Ratings",
-              plotOutput("avgPlot", height = "1000px")
-            ),
-            tabPanel(
-              "Posterior Distribution",
-              
-              # Picker to select Krapfen
-              pickerInput(
-                inputId = "selected_krapfen",
-                label = "Select Krapfen:",
-                choices = NULL,  # will update in server
-                selected = "Krapfen",
-                options = list(`live-search` = TRUE)
-              ),
-              
-              # Toggle correlation method (optional, can skip here)
-              
-              plotOutput("posteriorPlot", height = "500px")
-            )
-          )
-        )
-      )
-    } else {
-      # Show login page
-      div(
-        style = "padding: 20px;",
-        div(
-          style = "max-width: 500px; margin: 0 auto; padding: 30px; border: 1px solid #ddd; border-radius: 8px; background: #f9f9f9;",
-          h3("Welcome to Krapfen Rating!"),
-          p("Enter your name to get started:"),
-          textInput(
-            inputId = "rater_name",
-            label = "Your Name:",
-            placeholder = "Enter your name"
-          ),
-          br(),
-          actionButton(
-            inputId = "check_name_btn",
-            label = "Continue",
-            class = "btn-primary",
-            style = "width: 100%; padding: 10px;"
-          ),
-          div(id = "name_message", style = "margin-top: 20px;"),
-          hr(),
-          h5("Existing Raters:"),
-          uiOutput("existing_names_list")
-        )
-      )
+    if (!user_authenticated()) {
+      return(uiOutput("login_page_ui"))
     }
+    
+    if (app_mode() == "rate_all") {
+      # Show rating page for new users or users who want to rate
+      return(uiOutput("ratings_page"))
+    }
+    
+    if (app_mode() == "rate_single") {
+      return(uiOutput("single_rating_page"))
+    } 
+    
+    return(uiOutput("view_page_ui"))
+    
   })
+  
+  output$login_page_ui <- renderUI({
+    # Show login page
+    div(
+      style = "padding: 20px;",
+      div(
+        style = "max-width: 500px; margin: 0 auto; padding: 30px; border: 1px solid #ddd; border-radius: 8px; background: #f9f9f9;",
+        h3("Welcome to Krapfen Rating!"),
+        p("Enter your name to get started:"),
+        textInput(
+          inputId = "rater_name",
+          label = "Your Name:",
+          placeholder = "Enter your name"
+        ),
+        br(),
+        actionButton(
+          inputId = "check_name_btn",
+          label = "Continue",
+          class = "btn-primary",
+          style = "width: 100%; padding: 10px;"
+        ),
+        div(id = "name_message", style = "margin-top: 20px;"),
+        hr(),
+        h5("Existing Raters:"),
+        uiOutput("existing_names_list")
+      )
+    )
+  })
+  
+  output$view_page_ui <- renderUI({
+    # Show visualizations after rating is submitted or for existing users viewing results
+    sidebarLayout(
+      sidebarPanel(
+        width = 2,
+        helpText("Explore correlations and average ratings of different Krapfen."),
+        br(),
+        actionButton(
+          inputId = "back_to_rating_btn",
+          label = paste("Back to Rating (", current_rater(), ")", sep = ""),
+          class = "btn-secondary",
+          style = "width: 100%;"
+        ),
+        br(),
+        br(),
+        actionButton(
+          inputId = "rate_single_btn",
+          label = "I want to rate a Krapfen I've tasted",
+          class = "btn-success",
+          style = "width: 100%;"
+        ),
+        br(),
+        br(),
+        actionButton(
+          inputId = "logout_btn",
+          label = "Logout",
+          class = "btn-danger",
+          style = "width: 100%;"
+        )
+      ),
+      mainPanel(
+        tabsetPanel(
+          tabPanel(
+            "Krapfen Similarity",
+            
+            # Krapfen logo above the plot
+            tags$div(
+              style = "text-align:center;display:block; margin-left:auto; margin-right:auto; margin-bottom:20px;",
+              tags$img(src = "Krapfenlogo.png", height = "300px", style = "max-width: 100%;") 
+            ),
+            
+            shinyWidgets::switchInput(
+              inputId = "corr_method_switch",
+              label = "Switch Correlation",
+              onLabel = "Spearman",
+              offLabel = "Pearson",
+              value = FALSE
+            ),
+            plotOutput("corrPlot", height = "1000px")
+          ),
+          tabPanel(
+            "Average Ratings",
+            plotOutput("avgPlot", height = "1000px")
+          ),
+          tabPanel(
+            "Posterior Distribution",
+            
+            # Picker to select Krapfen
+            pickerInput(
+              inputId = "selected_krapfen",
+              label = "Select Krapfen:",
+              choices = available_krapfen(),
+              selected = available_krapfen()[1],
+              options = list(`live-search` = TRUE)
+            ),
+            
+            # Toggle correlation method (optional, can skip here)
+            
+            plotOutput("posteriorPlot", height = "500px")
+          )
+        )
+      )
+    )
+  })
+  
   
   # --- Render existing names list -------------------------------------------
   output$existing_names_list <- renderUI({
@@ -255,6 +276,11 @@ server <- function(input, output, session) {
     rating_divs <- lapply(krapfen, function(k) {
       # Use krapfen name directly as image filename with .png extension
       img_path <- paste0(k, ".png")
+      default_value <- 5
+      if(current_rater() %in% existing) {
+        rt <- fread(csv_file)
+        default_value <- as.numeric(rt[Rater == current_rater(), get(k)])
+      }
       
       div(
         style = "margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;",
@@ -277,7 +303,7 @@ server <- function(input, output, session) {
               label = "Rating (1-10):",
               min = 1,
               max = 10,
-              value = 5,
+              value = default_value,
               step = 1,
               width = "100%"
             )
@@ -333,6 +359,96 @@ server <- function(input, output, session) {
     )
   })
   
+  output$single_rating_page <- renderUI({
+    krapfen_choices <- colnames(expert_data)[-1]
+    
+    div(
+      style = "max-width: 600px; margin: 0 auto; padding: 30px;",
+      h3("Rate a Krapfen you’ve tried 🍩"),
+      
+      pickerInput(
+        "single_krapfen",
+        "Select Krapfen:",
+        choices = krapfen_choices,
+        options = list(`live-search` = TRUE)
+      ),
+      
+      sliderInput(
+        "single_score",
+        "Your rating:",
+        min = 1, max = 10, value = 5, step = 1
+      ),
+      
+      br(),
+      
+      actionButton(
+        "submit_single_rating",
+        "Submit rating",
+        class = "btn-primary"
+      ),
+      
+      br(), br(),
+      
+      actionButton(
+        "cancel_single_rating",
+        "Back",
+        class = "btn-secondary"
+      ),
+      
+      div(id = "single_submit_msg", style = "margin-top: 15px;")
+    )
+  })
+  
+  observeEvent(input$rate_single_btn, {
+    app_mode("rate_single")
+  })
+  
+  observeEvent(input$cancel_single_rating, {
+    app_mode("view")
+  })
+  
+  
+  observeEvent(input$submit_single_rating, {
+    req(input$single_krapfen, input$single_score)
+    
+    k <- input$single_krapfen
+    score <- as.numeric(input$single_score)
+    rater <- current_rater()
+    
+    file <- file.path(data_dir, "real_ratings.csv")
+    df <- fread(file)
+    # convert all columns except Rater to numeric
+    for (col in names(df)) {
+      if (col != "Rater") {
+        set(df, j = col, value = as.numeric(df[[col]]))
+      }
+    }
+    
+    if (!(rater %in% df$Rater)) {
+      new_row <- as.list(rep(NA, ncol(df)))
+      names(new_row) <- names(df)
+      new_row$Rater <- rater
+      df <- rbind(df, as.data.table(new_row), fill = TRUE)
+    }
+    
+    df[Rater == rater, (k) := score]
+    
+    fwrite(df, file)
+    
+    expert_data <<- df  # update in-memory copy
+    
+    available_krapfen(
+      get_viable_krapfen_options(copy(expert_data))
+    )
+    
+    shinyjs::runjs(
+      "document.getElementById('single_submit_msg').innerHTML =
+     '<div class=\"alert alert-success\">Rating saved 🎉</div>';"
+    )
+  })
+  
+  
+  
   # --- Submit ratings handler -----------------------------------------------
   observeEvent(input$submit_ratings, {
     rater_name <- current_rater()
@@ -365,7 +481,6 @@ server <- function(input, output, session) {
         set(current_data, j = col, value = as.numeric(current_data[[col]]))
       }
     }
-    
     # Check if rater already exists
     if (rater_name %in% current_data$Rater) {
       # Update existing row
@@ -393,6 +508,7 @@ server <- function(input, output, session) {
     new_user_submitted(FALSE)
     current_rater("")
     updateTextInput(session, "rater_name", value = "")
+    app_mode("view")
   })
   
   # --- Cancel ratings handler -------------------------------------------------------
@@ -412,6 +528,7 @@ server <- function(input, output, session) {
   # --- Back to rating handler ------------------------------------------------
   observeEvent(input$back_to_rating_btn, {
     is_new_user(TRUE)
+    app_mode("rate_all")
   })
   
   # --- Correlation plot -----------------------------------------------------
@@ -454,7 +571,6 @@ server <- function(input, output, session) {
     r <- copy(ratings())
     rt[, Summed_Rating := rowSums(.SD) / length(colnames(rt))]
     rt[, Krapfen := colnames(r)]
-    
     # Sort by rating
     rt <- rt[order(-Summed_Rating)]
     rt[, Krapfen := factor(Krapfen, levels = Krapfen)]
@@ -462,9 +578,14 @@ server <- function(input, output, session) {
     # compute standard deviation of Summed Rating
     rt[, SD_Rating := apply(.SD, 1, sd, na.rm = TRUE), .SDcols= colnames(ratings_transposed())]
     
-    ggplot(rt, aes(x = Krapfen, y = Summed_Rating, color=Krapfen)) +
-      geom_point(size = 5) +
-      # add errorbars
+    # draw images instead of scatter points
+    rt[, image := paste0("www/", Krapfen, ".png")]
+    image_grobs <- lapply(rt$image, function(path) {
+      rasterGrob(readPNG(path), interpolate = TRUE)
+    })
+    names(image_grobs) <- rt$Krapfen
+    
+    p <- ggplot(rt, aes(x = Krapfen, y = Summed_Rating)) +
       geom_errorbar(aes(ymin = Summed_Rating - SD_Rating,
                         ymax = Summed_Rating + SD_Rating),
                     width = 0.2) +
@@ -477,8 +598,22 @@ server <- function(input, output, session) {
         x = "Krapfen",
         y = "Average Points"
       ) +
-      theme(axis.text.x = element_text(angle = 90, hjust = 1),
+      theme(axis.text.x = element_blank(),
             text = element_text(size = 16))
+    
+    for (i in seq_len(nrow(rt))) {
+      k <- rt$Krapfen[i]
+      p <- p + annotation_custom(
+        grob = image_grobs[[as.character(k)]],
+        xmin = i - 0.5,
+        xmax = i + 0.5,
+        ymin = rt$Summed_Rating[i] - 0.5,
+        ymax = rt$Summed_Rating[i] + 0.5
+      )
+    }
+    
+    p
+    
   })
   
   # --- Render posterior plot ---

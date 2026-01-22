@@ -132,6 +132,19 @@ plot_comparison <- function(survey_data, expert_opinion) {
     )
 }
 
+get_viable_krapfen_options <- function(expert_data) {
+  expert_data <- expert_data[, lapply(.SD, function(col) {
+    if (any(is.na(col))) {
+      NULL
+    } else {
+      col
+    }
+  })]
+  k_names <- colnames(expert_data)[-1]
+  return(k_names)
+}
+
+
 # ----- Example usage -----
 # sample_survey_data <- c(9, 8, 9, 9, 9)
 # sample_expert_opinion <- c(5, 7)
