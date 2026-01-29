@@ -8,6 +8,7 @@ library(png)
 library(grid)
 
 source("posterior.R")
+source("utils.R")
 
 ui <- fluidPage(
   useShinyjs(),
@@ -35,64 +36,31 @@ server <- function(input, output, session) {
   if (!dir.exists(data_dir)) {
     dir.create(data_dir)
   }
-  csv_file <- file.path(data_dir, "KrapfenRating.csv")
-  
-  # Initialize data file if it doesn't exist
-  if (!file.exists(csv_file)) {
-    # Try to copy from root if it exists there
-    if (file.exists("KrapfenRating.csv")) {
-      file.copy("KrapfenRating.csv", csv_file)
-    } else {
-      stop("KrapfenRating.csv not found in root or data directory. Please add the CSV file.")
-    }
-  }
+  background_file <- file.path(data_dir, "KrapfenRating.csv")
+  rating_file <- file.path(data_dir, "real_ratings.csv")
   
   # Load data (reactive to refresh after submissions) --------------------
-  rating_table <- reactiveVal(fread(csv_file))
-  expert_data <- fread(file.path(data_dir,"real_ratings.csv"))
+  background_data <- reactiveVal(fread(background_file))
+  rating_data <- reactiveVal(fread(rating_file))
   
   # Reactive value to track if user has submitted/exists
   user_authenticated <- reactiveVal(FALSE)
   current_rater <- reactiveVal("")
-  is_new_user <- reactiveVal(FALSE)
+  is_new_user <- reactiveVal(TRUE)
   new_user_submitted <- reactiveVal(FALSE)
   
   # which view of the app is active?
-  app_mode <- reactiveVal("view")  
-  # values: "view", "rate_all", "rate_single"
-  
-  available_krapfen <- reactiveVal(
-    get_viable_krapfen_options(copy(expert_data))
-  )
-  
-  ratings <- reactive({
-    rating_table()
-  })
-  
+  app_mode <- reactiveVal("login_page_ui")  
+  # values: "login_page_ui", "view", "rate_all", "rate_single"
+    
   # Get krapfen names (all columns except first one which is Rater)
   krapfen_names <- reactive({
-    names(ratings())[-1]
+    names(background_data())[-1]
   })
   
   # Get list of existing raters
   existing_raters <- reactive({
-    ratings()$Rater
-  })
-  
-  # --- Transpose ratings ----------------------------------------------------
-  ratings_transposed <- reactive({
-    r <- ratings()
-    rater_names <- r$Rater
-    r[, Rater := NULL]
-    rt <- transpose(r)
-    setnames(rt, rater_names)
-    
-    # Ensure all columns are numeric
-    for (col in names(rt)) {
-      set(rt, j = col, value = as.numeric(rt[[col]]))
-    }
-    setDT(rt)
-    rt
+    background_data()$Rater
   })
   
   # --- Render app content conditionally ------------------------------------
@@ -203,8 +171,8 @@ server <- function(input, output, session) {
             pickerInput(
               inputId = "selected_krapfen",
               label = "Select Krapfen:",
-              choices = available_krapfen(),
-              selected = available_krapfen()[1],
+              choices = krapfen_names(),
+              selected = krapfen_names()[1],
               options = list(`live-search` = TRUE)
             ),
             
@@ -245,13 +213,15 @@ server <- function(input, output, session) {
     current_rater(name)
     
     if (name %in% existing) {
-      # Existing user - show rating page to potentially re-rate
+      # Existing user - navigate to view page (plots)
       is_new_user(FALSE)
       user_authenticated(TRUE)
+      app_mode("view")
     } else {
-      # New user - go to rating page
+      # New user - navigate to rating page
       is_new_user(TRUE)
       user_authenticated(TRUE)
+      app_mode("rate_all")
     }
   })
   
@@ -278,8 +248,9 @@ server <- function(input, output, session) {
       img_path <- paste0(k, ".png")
       default_value <- 5
       if(current_rater() %in% existing) {
-        rt <- fread(csv_file)
-        default_value <- as.numeric(rt[Rater == current_rater(), get(k)])
+        b <- background_data()
+        # b has krapfen as a column and raters as rows
+        default_value <- as.numeric(b[Rater == current_rater(), get(k)])
       }
       
       div(
@@ -317,7 +288,8 @@ server <- function(input, output, session) {
   
   # --- Ratings page UI (shown after name entry) ----------------------------
   output$ratings_page <- renderUI({
-    if (!user_authenticated()) {
+    if (!user_authenticated() & !is_new_user()) {
+      app_mode("rate_single")
       return(NULL)
     }
     
@@ -360,7 +332,8 @@ server <- function(input, output, session) {
   })
   
   output$single_rating_page <- renderUI({
-    krapfen_choices <- colnames(expert_data)[-1]
+    r <- copy(rating_data())
+    krapfen_choices <- colnames(r)[which(is.na(r[Rater == current_rater()]))]
     
     div(
       style = "max-width: 600px; margin: 0 auto; padding: 30px;",
@@ -415,8 +388,7 @@ server <- function(input, output, session) {
     score <- as.numeric(input$single_score)
     rater <- current_rater()
     
-    file <- file.path(data_dir, "real_ratings.csv")
-    df <- fread(file)
+    df <- copy(rating_data())
     # convert all columns except Rater to numeric
     for (col in names(df)) {
       if (col != "Rater") {
@@ -433,13 +405,10 @@ server <- function(input, output, session) {
     
     df[Rater == rater, (k) := score]
     
-    fwrite(df, file)
+    fwrite(df, file.path(data_dir, "real_ratings.csv"))
     
-    expert_data <<- df  # update in-memory copy
-    
-    available_krapfen(
-      get_viable_krapfen_options(copy(expert_data))
-    )
+    rating_data(df) 
+    app_mode("view")
     
     shinyjs::runjs(
       "document.getElementById('single_submit_msg').innerHTML =
@@ -451,13 +420,11 @@ server <- function(input, output, session) {
   
   # --- Submit ratings handler -----------------------------------------------
   observeEvent(input$submit_ratings, {
-    rater_name <- current_rater()
-    
-    # Read current data to get the exact structure
-    current_data <- fread(csv_file)
-    
-    # Get krapfen names from the actual data columns (excluding Rater)
-    actual_krapfen <- names(current_data)[-1]
+
+    rater_name <- current_rater()    
+    current_data <- background_data()    
+    actual_krapfen <- krapfen_names()
+    csv_file = file.path(data_dir, "KrapfenRating.csv")
     
     # Collect all ratings in the correct order
     ratings_vector <- sapply(actual_krapfen, function(k) {
@@ -494,11 +461,18 @@ server <- function(input, output, session) {
     fwrite(current_data, csv_file, sep = ";")
     
     # Update reactive data table
-    rating_table(current_data)
+    background_data(current_data)
+
+    # Update existing users (if new user)
+    if (!(rater_name %in% existing_raters())) {
+      existing <- c(existing_raters(), rater_name)
+      existing_raters(existing)
+    }
     
     # Mark submission and user as no longer new (for existing users who re-rate)
     new_user_submitted(TRUE)
     is_new_user(FALSE)
+    app_mode("view")
   })
   
   # --- Logout handler -------------------------------------------------------
@@ -508,7 +482,7 @@ server <- function(input, output, session) {
     new_user_submitted(FALSE)
     current_rater("")
     updateTextInput(session, "rater_name", value = "")
-    app_mode("view")
+    app_mode("login_page_ui")
   })
   
   # --- Cancel ratings handler -------------------------------------------------------
@@ -533,10 +507,11 @@ server <- function(input, output, session) {
   
   # --- Correlation plot -----------------------------------------------------
   output$corrPlot <- renderPlot({
-    rt <- ratings_transposed()
+    b <- copy(background_data())
+    bt <- transpose_background(b)
     
     # Check if we have enough raters for correlation
-    if (nrow(rt) < 2) {
+    if (nrow(bt) < 2) {
       plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
       text(1, 1, "Need at least 2 raters to compute correlations", 
            cex = 1.5, col = "gray40")
@@ -546,7 +521,7 @@ server <- function(input, output, session) {
     corr_method <- ifelse(input$corr_method_switch, "spearman", "pearson")
     
     corr_matrix <- cor(
-      rt,
+      bt,
       method = corr_method,
       use = "pairwise.complete.obs"
     )
@@ -567,27 +542,28 @@ server <- function(input, output, session) {
   
   # --- Average rating plot --------------------------------------------------
   output$avgPlot <- renderPlot({
-    rt <- copy(ratings_transposed())
-    r <- copy(ratings())
-    rt[, Summed_Rating := rowSums(.SD) / length(colnames(rt))]
-    rt[, Krapfen := colnames(r)]
+    b <- copy(background_data())
+    bt <- transpose_background(b)
+
+    bt[, Mean_Rating := rowSums(.SD) / length(colnames(bt))]
+    bt[, Krapfen := colnames(b)]
     # Sort by rating
-    rt <- rt[order(-Summed_Rating)]
-    rt[, Krapfen := factor(Krapfen, levels = Krapfen)]
+    bt <- bt[order(-Mean_Rating)]
+    bt[, Krapfen := factor(Krapfen, levels = Krapfen)]
 
     # compute standard deviation of Summed Rating
-    rt[, SD_Rating := apply(.SD, 1, sd, na.rm = TRUE), .SDcols= colnames(ratings_transposed())]
+    bt[, SD_Rating := apply(.SD, 1, sd, na.rm = TRUE), .SDcols= colnames(bt)]
     
     # draw images instead of scatter points
-    rt[, image := paste0("www/", Krapfen, ".png")]
-    image_grobs <- lapply(rt$image, function(path) {
+    bt[, image := paste0("www/", Krapfen, ".png")]
+    image_grobs <- lapply(bt$image, function(path) {
       rasterGrob(readPNG(path), interpolate = TRUE)
     })
-    names(image_grobs) <- rt$Krapfen
+    names(image_grobs) <- bt$Krapfen
     
-    p <- ggplot(rt, aes(x = Krapfen, y = Summed_Rating)) +
-      geom_errorbar(aes(ymin = Summed_Rating - SD_Rating,
-                        ymax = Summed_Rating + SD_Rating),
+    p <- ggplot(bt, aes(x = Krapfen, y = Mean_Rating)) +
+      geom_errorbar(aes(ymin = Mean_Rating - SD_Rating,
+                        ymax = Mean_Rating + SD_Rating),
                     width = 0.2) +
       theme_minimal() +
       ylim(1, 10) +
@@ -596,19 +572,19 @@ server <- function(input, output, session) {
       labs(
         title = "Average Krapfen Ratings",
         x = "Krapfen",
-        y = "Average Points"
+        y = "Average Score"
       ) +
       theme(axis.text.x = element_blank(),
             text = element_text(size = 16))
     
-    for (i in seq_len(nrow(rt))) {
-      k <- rt$Krapfen[i]
+    for (i in seq_len(nrow(bt))) {
+      k <- bt$Krapfen[i]
       p <- p + annotation_custom(
         grob = image_grobs[[as.character(k)]],
         xmin = i - 0.5,
         xmax = i + 0.5,
-        ymin = rt$Summed_Rating[i] - 0.5,
-        ymax = rt$Summed_Rating[i] + 0.5
+        ymin = bt$Mean_Rating[i] - 0.5,
+        ymax = bt$Mean_Rating[i] + 0.5
       )
     }
     
@@ -623,12 +599,13 @@ server <- function(input, output, session) {
     krapfen <- input$selected_krapfen
     
     # survey data for selected krapfen
-    survey_vec <- rating_table()[[krapfen]]
+    background_vec <- copy(background_data())[[krapfen]]
     
-    # expert data
-    expert_vec <- as.numeric(expert_data[[krapfen]])
+    # background data
+    rating_vec <- as.numeric(copy(rating_data())[[krapfen]])
     
-    plot_comparison(survey_vec, expert_vec)
+    plot_comparison(survey_data = background_vec, 
+                    expert_opinion = rating_vec)
   })
 }
 
