@@ -58,6 +58,13 @@ server <- function(input, output, session) {
     names(background_data())[-1]
   })
   
+  expert_rated_krapfen <- reactive({
+    r <- copy(rating_data())
+    rated <- names(r)[colSums(!is.na(r)) > 0]
+    rated <- rated[rated != "Rater"]
+    return(rated)
+  })
+  
   # Get list of existing raters
   existing_raters <- reactive({
     background_data()$Rater
@@ -171,8 +178,8 @@ server <- function(input, output, session) {
             pickerInput(
               inputId = "selected_krapfen",
               label = "Select Krapfen:",
-              choices = krapfen_names(),
-              selected = krapfen_names()[1],
+              choices = expert_rated_krapfen(),
+              selected = expert_rated_krapfen()[1],
               options = list(`live-search` = TRUE)
             ),
             
@@ -336,8 +343,13 @@ server <- function(input, output, session) {
     krapfen_choices <- colnames(r)[which(is.na(r[Rater == current_rater()]))]
     
     div(
-      style = "max-width: 600px; margin: 0 auto; padding: 30px;",
-      h3("Rate a Krapfen you’ve tried 🍩"),
+      style = "max-width: 800px; margin: 0 auto; padding: 30px;",
+      h3("Rate a Krapfen you've tried 🍩"),
+      
+      # Show existing ratings plot
+      plotOutput("user_ratings_plot", height = "300px"),
+      
+      br(),
       
       pickerInput(
         "single_krapfen",
@@ -370,6 +382,43 @@ server <- function(input, output, session) {
       
       div(id = "single_submit_msg", style = "margin-top: 15px;")
     )
+  })
+  
+  # --- User ratings plot ---
+  output$user_ratings_plot <- renderPlot({
+    r <- copy(rating_data())
+    user_row <- r[Rater == current_rater()]
+    
+    # Get only rated krapfen (non-NA values)
+    user_ratings <- unlist(user_row[, -1])  # Exclude Rater column
+    user_ratings <- user_ratings[!is.na(user_ratings)]
+    
+    if (length(user_ratings) == 0) {
+      # If no ratings yet, show message
+      plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+      text(1, 1, "You haven't rated any Krapfen yet!", cex = 1.5, col = "gray40")
+      return()
+    }
+    
+    # Create data frame for plotting
+    df <- data.frame(
+      Krapfen = names(user_ratings),
+      Rating = as.numeric(user_ratings)
+    )
+    
+    ggplot(df, aes(x = reorder(Krapfen, Rating), y = Rating)) +
+      geom_bar(stat = "identity", fill = "#3d98d3") +
+      coord_flip() +
+      ylim(0, 10) +
+      labs(
+        title = paste("Your Expert Ratings (", current_rater(), ")", sep = ""),
+        x = "",
+        y = "Rating"
+      ) +
+      theme_minimal(base_size = 14) +
+      theme(
+        plot.title = element_text(hjust = 0.5, face = "bold")
+      )
   })
   
   observeEvent(input$rate_single_btn, {
