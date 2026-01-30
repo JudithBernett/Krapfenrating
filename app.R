@@ -434,6 +434,30 @@ server <- function(input, output, session) {
                 ),
                 plotOutput("corrPlot", height = "1000px")
               )
+            ),
+            
+            br(),
+            
+            # Collapsible heatmap section
+            div(
+              style = "text-align: center; margin-top: 20px;",
+              actionButton(
+                inputId = "toggle_heatmap_btn",
+                label = "🔥 Show Rating Heatmap",
+                class = "btn-info",
+                style = "padding: 10px 20px;"
+              )
+            ),
+            
+            br(),
+            
+            # Collapsible heatmap container
+            shinyjs::hidden(
+              div(
+                id = "heatmap_container",
+                style = "margin-top: 20px;",
+                plotOutput("ratingHeatmap", height = "800px")
+              )
             )
           ),
           tabPanel(
@@ -857,6 +881,21 @@ server <- function(input, output, session) {
     }
   })
   
+  # --- Toggle heatmap visibility ---------------------------------------------
+  heatmap_visible <- reactiveVal(FALSE)
+  
+  observeEvent(input$toggle_heatmap_btn, {
+    if (heatmap_visible()) {
+      shinyjs::hide("heatmap_container")
+      heatmap_visible(FALSE)
+      shinyjs::html("toggle_heatmap_btn", "🔥 Show Rating Heatmap")
+    } else {
+      shinyjs::show("heatmap_container")
+      heatmap_visible(TRUE)
+      shinyjs::html("toggle_heatmap_btn", "🔥 Hide Rating Heatmap")
+    }
+  })
+  
   # --- Correlation cards output ---------------------------------------------
   output$correlation_cards <- renderUI({
     b <- copy(background_data())
@@ -947,7 +986,7 @@ server <- function(input, output, session) {
               sprintf("%.2f", lowest_val)),
           div(style = "font-size: 18px; font-weight: 600; color: #2d3748;", lowest_name),
           p(style = "margin-top: 15px; color: #718096; font-size: 14px;",
-            paste0("You and ", lowest_name, " will argue quite a bit over Krapfen choices!"))
+            paste0("You and ", lowest_name, " will argue quite a bit over Krapfen selection!"))
         )
       )
     )
@@ -990,6 +1029,86 @@ server <- function(input, output, session) {
       number.cex = 0.7,
       na.label = "."
     )
+  })
+  
+  # --- Rating heatmap -------------------------------------------------------
+  output$ratingHeatmap <- renderPlot({
+    b <- copy(background_data())
+    
+    if (nrow(b) == 0) {
+      plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+      text(1, 1, "No ratings available yet", cex = 1.5, col = "gray40")
+      return()
+    }
+    
+    # Prepare data for heatmap
+    rating_matrix <- as.matrix(b[, -1])  # Exclude Rater column
+    rownames(rating_matrix) <- b$Rater
+    
+    # Convert to numeric
+    rating_matrix <- apply(rating_matrix, 2, as.numeric)
+    rownames(rating_matrix) <- b$Rater
+    
+    # Perform hierarchical clustering on rows (raters) and columns (krapfen)
+    # For clustering, we need to handle NA values
+    # Use complete observations for distance calculation
+    
+    # Cluster rows (raters)
+    if (nrow(rating_matrix) > 1) {
+      row_dist <- dist(rating_matrix, method = "euclidean")
+      row_clust <- hclust(row_dist, method = "ward.D2")
+      row_order <- row_clust$order
+    } else {
+      row_order <- 1
+    }
+    
+    # Cluster columns (krapfen)
+    if (ncol(rating_matrix) > 1) {
+      col_dist <- dist(t(rating_matrix), method = "euclidean")
+      col_clust <- hclust(col_dist, method = "ward.D2")
+      col_order <- col_clust$order
+    } else {
+      col_order <- 1
+    }
+    
+    # Reorder matrix according to clustering
+    rating_matrix_ordered <- rating_matrix[row_order, col_order, drop = FALSE]
+    
+    # Create heatmap using ggplot2 for better control
+    library(reshape2)
+    heatmap_data <- melt(rating_matrix_ordered)
+    colnames(heatmap_data) <- c("Rater", "Krapfen", "Rating")
+    
+    # Preserve order by converting to factors
+    heatmap_data$Rater <- factor(heatmap_data$Rater, levels = rownames(rating_matrix_ordered))
+    heatmap_data$Krapfen <- factor(heatmap_data$Krapfen, levels = colnames(rating_matrix_ordered))
+    
+    ggplot(heatmap_data, aes(x = Krapfen, y = Rater, fill = Rating)) +
+      geom_tile(color = "white", size = 0.5) +
+      geom_text(aes(label = ifelse(is.na(Rating), "", sprintf("%.0f", Rating))), 
+                size = 3, color = "white", fontface = "bold") +
+      scale_fill_gradient2(
+        low = "#e76f51",
+        mid = "#f4f1de",
+        high = "#2a9d8f",
+        midpoint = 5.5,
+        na.value = "#e0e0e0",
+        name = "Rating",
+        limits = c(1, 10)
+      ) +
+      labs(
+        title = "Rating Heatmap: All Raters × All Krapfen (Clustered)",
+        x = "Krapfen",
+        y = "Rater"
+      ) +
+      theme_minimal(base_size = 12) +
+      theme(
+        axis.text.x = element_text(angle = 45, hjust = 1, size = 10),
+        axis.text.y = element_text(size = 10),
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+        panel.grid = element_blank(),
+        legend.position = "right"
+      )
   })
   
   # --- Average rating plot --------------------------------------------------
