@@ -465,6 +465,27 @@ server <- function(input, output, session) {
             plotOutput("avgPlot", height = "1000px")
           ),
           tabPanel(
+            "Prediction Accuracy",
+            
+            h4("How well can you predict taste from appearance?", 
+               style = "text-align: center; color: #2d3748; margin-bottom: 30px; margin-top: 20px;"),
+            
+            # User's personal accuracy card
+            uiOutput("user_accuracy_card"),
+            
+            br(), br(),
+            
+            # Scatter plot comparing predictions vs reality
+            plotOutput("predictionScatterPlot", height = "500px"),
+            
+            br(),
+            
+            # All users accuracy comparison
+            h4("Prediction Accuracy Across All Raters", 
+               style = "text-align: center; color: #2d3748; margin-top: 30px; margin-bottom: 20px;"),
+            plotOutput("accuracyComparisonPlot", height = "400px")
+          ),
+          tabPanel(
             "Posterior Distribution",
             
             # Picker to select Krapfen
@@ -485,6 +506,202 @@ server <- function(input, output, session) {
     )
   })
   
+  
+  # --- User accuracy card ---------------------------------------------------
+  output$user_accuracy_card <- renderUI({
+    current_user <- current_rater()
+    bg_data <- copy(background_data())
+    exp_data <- copy(rating_data())
+    
+    # Check if user exists in both datasets
+    if (!(current_user %in% bg_data$Rater) || !(current_user %in% exp_data$Rater)) {
+      return(
+        div(
+          class = "stats-card",
+          style = "max-width: 700px; margin: 0 auto; padding: 30px; text-align: center;",
+          p("Complete your expert ratings to see your prediction accuracy!", 
+            style = "color: #718096; font-size: 16px;")
+        )
+      )
+    }
+    
+    # Get user's ratings
+    bg_ratings <- as.numeric(bg_data[Rater == current_user, -1])
+    exp_ratings <- as.numeric(exp_data[Rater == current_user, -1])
+    
+    # Find pairs where both exist
+    valid_pairs <- !is.na(bg_ratings) & !is.na(exp_ratings)
+    
+    if (sum(valid_pairs) == 0) {
+      return(
+        div(
+          class = "stats-card",
+          style = "max-width: 700px; margin: 0 auto; padding: 30px; text-align: center;",
+          p("Rate some Krapfen you've tasted to see your prediction accuracy!", 
+            style = "color: #718096; font-size: 16px;")
+        )
+      )
+    }
+    
+    bg_valid <- bg_ratings[valid_pairs]
+    exp_valid <- exp_ratings[valid_pairs]
+    
+    # Calculate metrics
+    rmse <- sqrt(mean((bg_valid - exp_valid)^2))
+    correlation <- cor(bg_valid, exp_valid)
+    n_compared <- sum(valid_pairs)
+    
+    # Determine accuracy level and color
+    if (rmse < 1.5) {
+      accuracy_text <- "Excellent Predictor! 🎯"
+      accuracy_color <- "#2a9d8f"
+      bg_color <- "linear-gradient(135deg, #2a9d8f15 0%, #2a9d8f25 100%)"
+      border_color <- "#2a9d8f"
+    } else if (rmse < 2.5) {
+      accuracy_text <- "Good Predictor 👍"
+      accuracy_color <- "#457b9d"
+      bg_color <- "linear-gradient(135deg, #457b9d15 0%, #457b9d25 100%)"
+      border_color <- "#457b9d"
+    } else {
+      accuracy_text <- "Surprises Await! 🎉"
+      accuracy_color <- "#e76f51"
+      bg_color <- "linear-gradient(135deg, #e76f5115 0%, #e76f5125 100%)"
+      border_color <- "#e76f51"
+    }
+    
+    div(
+      class = "stats-card",
+      style = paste0("max-width: 700px; margin: 0 auto; padding: 30px; background: ", bg_color, "; border-left: 4px solid ", border_color, ";"),
+      h4(accuracy_text, style = paste0("text-align: center; color: ", accuracy_color, "; margin-bottom: 20px;")),
+      div(
+        style = "display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; text-align: center;",
+        div(
+          div(style = "font-size: 32px; font-weight: 700; color: #2d3748;", sprintf("%.2f", rmse)),
+          div(style = "font-size: 12px; color: #718096; margin-top: 5px;", "Root Mean Squared Error")
+        ),
+        div(
+          div(style = "font-size: 32px; font-weight: 700; color: #2d3748;", sprintf("%.2f", correlation)),
+          div(style = "font-size: 12px; color: #718096; margin-top: 5px;", "Correlation")
+        ),
+        div(
+          div(style = "font-size: 32px; font-weight: 700; color: #2d3748;", n_compared),
+          div(style = "font-size: 12px; color: #718096; margin-top: 5px;", "Krapfen Compared")
+        )
+      ),
+      p(style = "text-align: center; color: #718096; font-size: 14px; margin-top: 20px; margin-bottom: 0;",
+        "Lower RMSE means better prediction accuracy. Perfect prediction = 0.")
+    )
+  })
+  
+  # --- Prediction scatter plot ----------------------------------------------
+  output$predictionScatterPlot <- renderPlot({
+    current_user <- current_rater()
+    bg_data <- copy(background_data())
+    exp_data <- copy(rating_data())
+    
+    # Check if user exists in both datasets
+    if (!(current_user %in% bg_data$Rater) || !(current_user %in% exp_data$Rater)) {
+      plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+      text(1, 1, "Complete your expert ratings to see comparison", cex = 1.5, col = "gray40")
+      return()
+    }
+    
+    # Get user's ratings
+    bg_ratings <- as.numeric(bg_data[Rater == current_user, -1])
+    exp_ratings <- as.numeric(exp_data[Rater == current_user, -1])
+    krapfen_names <- names(bg_data)[-1]
+    
+    # Find pairs where both exist
+    valid_pairs <- !is.na(bg_ratings) & !is.na(exp_ratings)
+    
+    if (sum(valid_pairs) == 0) {
+      plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+      text(1, 1, "No Krapfen with both predictions and expert ratings yet", cex = 1.5, col = "gray40")
+      return()
+    }
+    
+    # Create data frame
+    plot_data <- data.frame(
+      Krapfen = krapfen_names[valid_pairs],
+      Predicted = bg_ratings[valid_pairs],
+      Actual = exp_ratings[valid_pairs]
+    )
+    
+    ggplot(plot_data, aes(x = Predicted, y = Actual)) +
+      geom_abline(intercept = 0, slope = 1, linetype = "dashed", color = "#718096", size = 1) +
+      geom_point(size = 4, alpha = 0.7, color = "#2c7da0") +
+      geom_text(aes(label = Krapfen), vjust = -0.8, size = 3.5, color = "#2d3748") +
+      scale_x_continuous(limits = c(1, 10), breaks = 1:10) +
+      scale_y_continuous(limits = c(1, 10), breaks = 1:10) +
+      labs(
+        title = paste0("Predicted vs Actual Ratings (", current_user, ")"),
+        x = "Predicted Rating (Background)",
+        y = "Actual Rating (Expert)",
+        caption = "Dashed line = perfect prediction"
+      ) +
+      theme_minimal(base_size = 14) +
+      theme(
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+        panel.grid.minor = element_blank(),
+        plot.caption = element_text(color = "#718096", hjust = 0.5)
+      )
+  })
+  
+  # --- Accuracy comparison plot ---------------------------------------------
+  output$accuracyComparisonPlot <- renderPlot({
+    bg_data <- copy(background_data())
+    exp_data <- copy(rating_data())
+    
+    # Calculate RMSE for each rater who has both types of ratings
+    accuracy_list <- list()
+    
+    for (rater in bg_data$Rater) {
+      if (rater %in% exp_data$Rater) {
+        bg_ratings <- as.numeric(bg_data[Rater == rater, -1])
+        exp_ratings <- as.numeric(exp_data[Rater == rater, -1])
+        
+        valid_pairs <- !is.na(bg_ratings) & !is.na(exp_ratings)
+        
+        if (sum(valid_pairs) > 0) {
+          rmse <- sqrt(mean((bg_ratings[valid_pairs] - exp_ratings[valid_pairs])^2))
+          n_compared <- sum(valid_pairs)
+          
+          accuracy_list[[length(accuracy_list) + 1]] <- data.frame(
+            Rater = rater,
+            RMSE = rmse,
+            N = n_compared,
+            IsCurrentUser = rater == current_rater()
+          )
+        }
+      }
+    }
+    
+    if (length(accuracy_list) == 0) {
+      plot(1, type = "n", axes = FALSE, xlab = "", ylab = "")
+      text(1, 1, "No raters with both prediction and expert ratings yet", cex = 1.5, col = "gray40")
+      return()
+    }
+    
+    accuracy_df <- do.call(rbind, accuracy_list)
+    accuracy_df <- accuracy_df[order(accuracy_df$RMSE), ]
+    accuracy_df$Rater <- factor(accuracy_df$Rater, levels = accuracy_df$Rater)
+    
+    ggplot(accuracy_df, aes(x = Rater, y = RMSE, fill = IsCurrentUser)) +
+      geom_bar(stat = "identity") +
+      geom_text(aes(label = sprintf("%.2f", RMSE)), vjust = -0.5, size = 3) +
+      scale_fill_manual(values = c("FALSE" = "#2c7da0", "TRUE" = "#2a9d8f"), guide = "none") +
+      labs(
+        title = "Prediction Accuracy by Rater (Lower is Better)",
+        x = "Rater",
+        y = "Root Mean Squared Error"
+      ) +
+      theme_minimal(base_size = 14) +
+      theme(
+        plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid.major.x = element_blank()
+      )
+  })
   
   # --- Render existing names list -------------------------------------------
   output$existing_names_list <- renderUI({
