@@ -560,7 +560,11 @@ server <- function(input, output, session) {
     
     # Calculate metrics
     rmse <- sqrt(mean((bg_valid - exp_valid)^2))
+    # Handle correlation with potential NA or NaN values
     correlation <- cor(bg_valid, exp_valid)
+    if (is.na(correlation) || is.nan(correlation)) {
+      correlation <- 0
+    }
     n_compared <- sum(valid_pairs)
     
     # Determine accuracy level and color
@@ -1304,18 +1308,21 @@ server <- function(input, output, session) {
     rating_matrix_ordered <- rating_matrix[row_order, col_order, drop = FALSE]
     
     # Create heatmap using ggplot2 for better control
-    library(reshape2)
-    heatmap_data <- melt(rating_matrix_ordered)
-    colnames(heatmap_data) <- c("Rater", "Krapfen", "Rating")
+    # Convert matrix to data.table in long format
+    heatmap_data <- data.table(
+      Rater = rep(rownames(rating_matrix_ordered), ncol(rating_matrix_ordered)),
+      Krapfen = rep(colnames(rating_matrix_ordered), each = nrow(rating_matrix_ordered)),
+      Rating = as.vector(rating_matrix_ordered)
+    )
     
     # Preserve order by converting to factors
-    heatmap_data$Rater <- factor(heatmap_data$Rater, levels = rownames(rating_matrix_ordered))
-    heatmap_data$Krapfen <- factor(heatmap_data$Krapfen, levels = colnames(rating_matrix_ordered))
+    heatmap_data[, Rater := factor(Rater, levels = rownames(rating_matrix_ordered))]
+    heatmap_data[, Krapfen := factor(Krapfen, levels = colnames(rating_matrix_ordered))]
     
     ggplot(heatmap_data, aes(x = Krapfen, y = Rater, fill = Rating)) +
       geom_tile(color = "white", size = 0.5) +
       geom_text(aes(label = ifelse(is.na(Rating), "", sprintf("%.0f", Rating))), 
-                size = 3, color = "white", fontface = "bold") +
+                size = 3, color = "black", fontface = "bold") +
       scale_fill_gradient2(
         low = "#e76f51",
         mid = "#f4f1de",
