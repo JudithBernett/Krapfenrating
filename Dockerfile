@@ -14,8 +14,6 @@ RUN R -e "install.packages('renv', repos='https://cloud.r-project.org')"
 
 # Copy renv files first for better layer caching
 COPY renv.lock /srv/shiny-server/krapfen/
-COPY .Rprofile /srv/shiny-server/krapfen/
-COPY renv /srv/shiny-server/krapfen/renv
 
 WORKDIR /srv/shiny-server/krapfen
 

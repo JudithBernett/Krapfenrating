@@ -91,16 +91,29 @@ server <- function(input, output, session) {
   
   output$login_page_ui <- renderUI({
     # Show login page
+    existing <- sort(existing_raters())
+    
+    # Calculate stats
+    num_raters <- length(existing)
+    num_krapfen <- length(krapfen_names())
+    total_ratings <- sum(!is.na(background_data()[, -1]))
+    num_expert_ratings <- sum(!is.na(rating_data()[, -1]))
+    
     div(
       style = "padding: 20px;",
       div(
         style = "max-width: 500px; margin: 0 auto; padding: 30px; border: 1px solid #ddd; border-radius: 8px; background: #f9f9f9;",
         h3("Welcome to Krapfen Rating!"),
-        p("Enter your name to get started:"),
-        textInput(
+        p("Select your name from the list or type a new name:"),
+        selectizeInput(
           inputId = "rater_name",
           label = "Your Name:",
-          placeholder = "Enter your name"
+          choices = existing,
+          selected = NULL,
+          options = list(
+            create = TRUE,
+            placeholder = "Select or type your name..."
+          )
         ),
         br(),
         actionButton(
@@ -109,10 +122,31 @@ server <- function(input, output, session) {
           class = "btn-primary",
           style = "width: 100%; padding: 10px;"
         ),
-        div(id = "name_message", style = "margin-top: 20px;"),
-        hr(),
-        h5("Existing Raters:"),
-        uiOutput("existing_names_list")
+        div(id = "name_message", style = "margin-top: 20px;")
+      ),
+      br(),
+      div(
+        style = "max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background: #fff;",
+        h4("📊 Current Statistics", style = "margin-top: 0;"),
+        tags$table(
+          style = "width: 100%; border-collapse: collapse;",
+          tags$tr(
+            tags$td(style = "padding: 8px; border-bottom: 1px solid #eee;", strong("Total Raters:")),
+            tags$td(style = "padding: 8px; border-bottom: 1px solid #eee; text-align: right;", num_raters)
+          ),
+          tags$tr(
+            tags$td(style = "padding: 8px; border-bottom: 1px solid #eee;", strong("Krapfen Types:")),
+            tags$td(style = "padding: 8px; border-bottom: 1px solid #eee; text-align: right;", num_krapfen)
+          ),
+          tags$tr(
+            tags$td(style = "padding: 8px; border-bottom: 1px solid #eee;", strong("Background Ratings:")),
+            tags$td(style = "padding: 8px; border-bottom: 1px solid #eee; text-align: right;", total_ratings)
+          ),
+          tags$tr(
+            tags$td(style = "padding: 8px;", strong("Expert Ratings:")),
+            tags$td(style = "padding: 8px; text-align: right;", num_expert_ratings)
+          )
+        )
       )
     )
   })
