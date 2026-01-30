@@ -6,17 +6,28 @@ RUN apt-get update && apt-get install -y \
     libcurl4-openssl-dev \
     libssl-dev \
     libxml2-dev \
+    vim \
     && rm -rf /var/lib/apt/lists/*
 
 # Install renv
 RUN R -e "install.packages('renv', repos='https://cloud.r-project.org')"
 
-# Copy app into Shiny Server directory
-COPY . /srv/shiny-server/krapfen
+# Copy renv files first for better layer caching
+COPY renv.lock /srv/shiny-server/krapfen/
+COPY .Rprofile /srv/shiny-server/krapfen/
+COPY renv /srv/shiny-server/krapfen/renv
 
 WORKDIR /srv/shiny-server/krapfen
 
 # Restore R packages from renv.lock
+RUN R -e "renv::restore()"
+
+# Copy data files (these will be the initial state)
+COPY data/*.csv /srv/shiny-server/krapfen/data/
+
+# Copy the rest of the app
+COPY app.R posterior.R utils.R /srv/shiny-server/krapfen/
+COPY www /srv/shiny-server/krapfen/www
 RUN R -e "renv::restore()"
 
 # Fix permissions
