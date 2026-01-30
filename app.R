@@ -345,7 +345,7 @@ server <- function(input, output, session) {
     # Show visualizations after rating is submitted or for existing users viewing results
     sidebarLayout(
       sidebarPanel(
-        width = 2,
+        width = 3,
         style = "background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.07);",
         div(
           style = "text-align: center; margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #2c7da015 0%, #014f8615 100%); border-radius: 8px;",
@@ -386,14 +386,55 @@ server <- function(input, output, session) {
               tags$img(src = "Krapfenlogo.png", height = "300px", style = "max-width: 100%;") 
             ),
             
-            shinyWidgets::switchInput(
-              inputId = "corr_method_switch",
-              label = "Switch Correlation",
-              onLabel = "Spearman",
-              offLabel = "Pearson",
-              value = FALSE
+            # Correlation method selector
+            div(
+              style = "text-align: center; margin-bottom: 30px;",
+              shinyWidgets::switchInput(
+                inputId = "corr_method_switch",
+                label = "Correlation Method",
+                onLabel = "Spearman",
+                offLabel = "Pearson",
+                value = FALSE
+              )
             ),
-            plotOutput("corrPlot", height = "1000px")
+            
+            # Main correlation cards
+            h4("Your Taste Similarity", style = "text-align: center; color: #2d3748; margin-bottom: 20px;"),
+            uiOutput("correlation_cards"),
+            
+            br(), br(),
+            
+            # Collapsible full matrix section
+            div(
+              style = "text-align: center; margin-top: 30px;",
+              actionButton(
+                inputId = "toggle_matrix_btn",
+                label = "📊 Show Full Correlation Matrix",
+                class = "btn-info",
+                style = "padding: 10px 20px;"
+              )
+            ),
+            
+            br(),
+            
+            # Collapsible matrix container
+            shinyjs::hidden(
+              div(
+                id = "matrix_container",
+                style = "margin-top: 20px;",
+                div(
+                  style = "text-align: center; margin-bottom: 15px;",
+                  shinyWidgets::switchInput(
+                    inputId = "corr_display_switch",
+                    label = "Show Coefficients",
+                    onLabel = "Yes",
+                    offLabel = "No",
+                    value = FALSE
+                  )
+                ),
+                plotOutput("corrPlot", height = "1000px")
+              )
+            )
           ),
           tabPanel(
             "Average Ratings",
@@ -801,6 +842,117 @@ server <- function(input, output, session) {
     app_mode("rate_all")
   })
   
+  # --- Toggle matrix visibility ----------------------------------------------
+  matrix_visible <- reactiveVal(FALSE)
+  
+  observeEvent(input$toggle_matrix_btn, {
+    if (matrix_visible()) {
+      shinyjs::hide("matrix_container")
+      matrix_visible(FALSE)
+      shinyjs::html("toggle_matrix_btn", "📊 Show Full Correlation Matrix")
+    } else {
+      shinyjs::show("matrix_container")
+      matrix_visible(TRUE)
+      shinyjs::html("toggle_matrix_btn", "📊 Hide Full Correlation Matrix")
+    }
+  })
+  
+  # --- Correlation cards output ---------------------------------------------
+  output$correlation_cards <- renderUI({
+    b <- copy(background_data())
+    bt <- transpose_background(b)
+    
+    # Check if we have enough raters for correlation
+    if (nrow(bt) < 2) {
+      return(
+        div(
+          style = "text-align: center; padding: 40px; color: #718096;",
+          p("Need at least 2 raters to compute correlations", style = "font-size: 16px;")
+        )
+      )
+    }
+    
+    corr_method <- ifelse(input$corr_method_switch, "spearman", "pearson")
+    
+    corr_matrix <- cor(
+      bt,
+      method = corr_method,
+      use = "pairwise.complete.obs"
+    )
+    
+    # Replace any NA/NaN/Inf values with 0
+    corr_matrix[is.na(corr_matrix) | is.infinite(corr_matrix)] <- 0
+    
+    # Get current user's correlations
+    current_user <- current_rater()
+    if (!(current_user %in% rownames(corr_matrix))) {
+      return(
+        div(
+          style = "text-align: center; padding: 40px; color: #718096;",
+          p("Please complete your ratings to see correlations", style = "font-size: 16px;")
+        )
+      )
+    }
+    
+    user_corrs <- corr_matrix[current_user, ]
+    # Exclude self-correlation
+    user_corrs <- user_corrs[names(user_corrs) != current_user]
+    
+    if (length(user_corrs) == 0) {
+      return(
+        div(
+          style = "text-align: center; padding: 40px; color: #718096;",
+          p("No other raters to compare with yet", style = "font-size: 16px;")
+        )
+      )
+    }
+    
+    # Find highest and lowest
+    highest_idx <- which.max(user_corrs)
+    lowest_idx <- which.min(user_corrs)
+    
+    highest_name <- names(user_corrs)[highest_idx]
+    highest_val <- user_corrs[highest_idx]
+    lowest_name <- names(user_corrs)[lowest_idx]
+    lowest_val <- user_corrs[lowest_idx]
+    
+    div(
+      style = "display: grid; grid-template-columns: 1fr 1fr; gap: 30px; max-width: 900px; margin: 0 auto;",
+      
+      # Highest correlation card
+      div(
+        class = "stats-card",
+        style = "padding: 30px; background: linear-gradient(135deg, #2a9d8f15 0%, #2a9d8f25 100%); border-left: 4px solid #2a9d8f;",
+        div(
+          style = "text-align: center;",
+          div(style = "font-size: 48px; margin-bottom: 10px;", "🍩 🤝 🍩"),
+          h4("Most Similar Taste", style = "color: #2d3748; margin-bottom: 15px;"),
+          div(style = "font-size: 28px; font-weight: 700; color: #2a9d8f; margin-bottom: 10px;", 
+              sprintf("%.2f", highest_val)),
+          div(style = "font-size: 18px; font-weight: 600; color: #2d3748;", highest_name),
+          p(style = "margin-top: 15px; color: #718096; font-size: 14px;",
+            paste0("You and ", highest_name, " will have it easy to decide on a shared Krapfen!"))
+        )
+      ),
+      
+      # Lowest correlation card
+      div(
+        class = "stats-card",
+        style = "padding: 30px; background: linear-gradient(135deg, #e76f5115 0%, #e76f5125 100%); border-left: 4px solid #e76f51;",
+        div(
+          style = "text-align: center;",
+          div(style = "font-size: 48px; margin-bottom: 10px;", "🍩 💥 🍩"),
+          h4("Most Different Taste", style = "color: #2d3748; margin-bottom: 15px;"),
+          div(style = "font-size: 28px; font-weight: 700; color: #e76f51; margin-bottom: 10px;", 
+              sprintf("%.2f", lowest_val)),
+          div(style = "font-size: 18px; font-weight: 600; color: #2d3748;", lowest_name),
+          p(style = "margin-top: 15px; color: #718096; font-size: 14px;",
+            paste0("You and ", lowest_name, " will argue quite a bit over Krapfen choices!"))
+        )
+      )
+    )
+  })
+  
   # --- Correlation plot -----------------------------------------------------
   output$corrPlot <- renderPlot({
     b <- copy(background_data())
@@ -815,6 +967,7 @@ server <- function(input, output, session) {
     }
     
     corr_method <- ifelse(input$corr_method_switch, "spearman", "pearson")
+    show_coefficients <- input$corr_display_switch
     
     corr_matrix <- cor(
       bt,
@@ -825,13 +978,16 @@ server <- function(input, output, session) {
     # Replace any NA/NaN/Inf values with 0
     corr_matrix[is.na(corr_matrix) | is.infinite(corr_matrix)] <- 0
     
+    # Always display colored plot, optionally with coefficients on top
     corrplot(
       corr_matrix,
+      type = "upper",
       order = "hclust",
       tl.col = "black",
       tl.srt = 45,
       col = COL2("PiYG"),
-      addCoef.col = "black",
+      addCoef.col = if(show_coefficients) "black" else NULL,
+      number.cex = 0.7,
       na.label = "."
     )
   })
