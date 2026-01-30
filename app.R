@@ -488,6 +488,20 @@ server <- function(input, output, session) {
           tabPanel(
             "Posterior Distribution",
             
+            div(
+              style = "text-align: center; margin-bottom: 20px; margin-top: 10px;",
+              p(
+                "Learn more about the methodology in our ",
+                tags$a(
+                  href = "https://github.com/JudithBernett/Krapfenrating/blob/main/paper.pdf",
+                  target = "_blank",
+                  "paper",
+                  style = "color: #2c7da0; font-weight: 600;"
+                ),
+                style = "color: #718096; font-size: 14px;"
+              )
+            ),
+            
             # Picker to select Krapfen
             pickerInput(
               inputId = "selected_krapfen",
@@ -496,8 +510,6 @@ server <- function(input, output, session) {
               selected = expert_rated_krapfen()[1],
               options = list(`live-search` = TRUE)
             ),
-            
-            # Toggle correlation method (optional, can skip here)
             
             plotOutput("posteriorPlot", height = "500px")
           )
