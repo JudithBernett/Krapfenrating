@@ -12,20 +12,204 @@ source("utils.R")
 
 ui <- fluidPage(
   useShinyjs(),
-  titlePanel("Krapfen Rating Explorer 🍩"),
   
-  # --- Feature request badge ---
-  tags$div(
-    style = "margin-bottom: 15px;",
-    tags$a(
-      href = "https://github.com/JudithBernett/Krapfenrating",
-      target = "_blank",
-      tags$img(
-        src = "https://img.shields.io/badge/Feature%20Request-GitHub-blue?logo=github",
-        alt = "Feature request on GitHub"
+  # Custom CSS for modern styling
+  tags$head(
+    tags$style(HTML("
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+      
+      body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        background: linear-gradient(135deg, #1e3a5f 0%, #2c5f8d 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+      
+      .container-fluid {
+        max-width: 1400px;
+        margin: 0 auto;
+      }
+      
+      h2, h3, h4, h5 {
+        font-weight: 600;
+        color: #2d3748;
+      }
+      
+      .btn {
+        border-radius: 8px;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      }
+      
+      .btn-primary {
+        background: linear-gradient(135deg, #2c7da0 0%, #014f86 100%);
+      }
+      
+      .btn-primary:hover {
+        background: linear-gradient(135deg, #236a87 0%, #013d6a 100%);
+      }
+      
+      .btn-secondary {
+        background: #718096;
+      }
+      
+      .btn-secondary:hover {
+        background: #4a5568;
+      }
+      
+      .btn-success {
+        background: #2a9d8f;
+      }
+      
+      .btn-success:hover {
+        background: #21867a;
+      }
+      
+      .btn-danger {
+        background: #e76f51;
+      }
+      
+      .btn-danger:hover {
+        background: #d4603f;
+      }
+      
+      .btn-info {
+        background: #457b9d;
+      }
+      
+      .btn-info:hover {
+        background: #3a6785;
+      }
+      
+      .well {
+        background: white;
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.07);
+      }
+      
+      .nav-tabs {
+        border-bottom: 2px solid #e2e8f0;
+      }
+      
+      .nav-tabs > li > a {
+        border-radius: 8px 8px 0 0;
+        color: #4a5568;
+        font-weight: 500;
+      }
+      
+      .nav-tabs > li.active > a {
+        background: linear-gradient(135deg, #2c7da0 0%, #014f86 100%);
+        color: white;
+        border: none;
+      }
+      
+      .selectize-input {
+        border-radius: 8px;
+        border: 2px solid #e2e8f0;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        transition: all 0.2s ease;
+      }
+      
+      .selectize-input:focus {
+        border-color: #2c7da0;
+        box-shadow: 0 0 0 3px rgba(44, 125, 160, 0.1);
+      }
+      
+      .form-control {
+        border-radius: 8px;
+        border: 2px solid #e2e8f0;
+        transition: all 0.2s ease;
+      }
+      
+      .form-control:focus {
+        border-color: #2c7da0;
+        box-shadow: 0 0 0 3px rgba(44, 125, 160, 0.1);
+      }
+      
+      .alert {
+        border-radius: 8px;
+        border: none;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      
+      .alert-success {
+        background: #d4edda;
+        color: #155724;
+      }
+      
+      .alert-danger {
+        background: #f8d7da;
+        color: #721c24;
+      }
+      
+      .header-card {
+        background: white;
+        border-radius: 16px;
+        padding: 30px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+      }
+      
+      .stats-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.07);
+      }
+      
+      .rating-card {
+        background: white;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+        transition: all 0.3s ease;
+      }
+      
+      .rating-card:hover {
+        box-shadow: 0 8px 16px rgba(0,0,0,0.12);
+        transform: translateY(-2px);
+      }
+      
+      .irs-bar {
+        background: linear-gradient(135deg, #2c7da0 0%, #014f86 100%);
+      }
+      
+      .irs-from, .irs-to, .irs-single {
+        background: #2c7da0;
+      }
+    "))
+  ),
+  
+  # Header with badge
+  div(
+    class = "header-card",
+    div(
+      style = "display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;",
+      div(
+        h2(style = "margin: 0; color: #2c7da0;", "🍩 ", span("Krapfen Rating Explorer", style = "background: linear-gradient(135deg, #2c7da0 0%, #014f86 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;"))
+      ),
+      div(
+        tags$a(
+          href = "https://github.com/JudithBernett/Krapfenrating",
+          target = "_blank",
+          tags$img(
+            src = "https://img.shields.io/badge/Feature%20Request-GitHub-blue?logo=github",
+            alt = "Feature request on GitHub"
+          )
+        )
       )
     )
   ),
+  
   uiOutput("app_content")
 )
 
@@ -102,9 +286,10 @@ server <- function(input, output, session) {
     div(
       style = "padding: 20px;",
       div(
-        style = "max-width: 500px; margin: 0 auto; padding: 30px; border: 1px solid #ddd; border-radius: 8px; background: #f9f9f9;",
-        h3("Welcome to Krapfen Rating!"),
-        p("Select your name from the list or type a new name:"),
+        class = "stats-card",
+        style = "max-width: 550px; margin: 0 auto; padding: 40px;",
+        h3("Welcome to Krapfen Rating! 👋", style = "text-align: center; color: #2d3748; margin-bottom: 25px;"),
+        p("Select your name from the list or type a new name:", style = "color: #4a5568; text-align: center; margin-bottom: 20px;"),
         selectizeInput(
           inputId = "rater_name",
           label = "Your Name:",
@@ -118,33 +303,38 @@ server <- function(input, output, session) {
         br(),
         actionButton(
           inputId = "check_name_btn",
-          label = "Continue",
+          label = "Continue →",
           class = "btn-primary",
-          style = "width: 100%; padding: 10px;"
+          style = "width: 100%; padding: 12px; font-size: 16px;"
         ),
         div(id = "name_message", style = "margin-top: 20px;")
       ),
-      br(),
+      br(), br(),
       div(
-        style = "max-width: 500px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 8px; background: #fff;",
-        h4("📊 Current Statistics", style = "margin-top: 0;"),
-        tags$table(
-          style = "width: 100%; border-collapse: collapse;",
-          tags$tr(
-            tags$td(style = "padding: 8px; border-bottom: 1px solid #eee;", strong("Total Raters:")),
-            tags$td(style = "padding: 8px; border-bottom: 1px solid #eee; text-align: right;", num_raters)
+        class = "stats-card",
+        style = "max-width: 550px; margin: 0 auto; padding: 30px;",
+        h4("📊 Current Statistics", style = "margin-top: 0; color: #2d3748; margin-bottom: 20px; text-align: center;"),
+        div(
+          style = "display: grid; grid-template-columns: 1fr 1fr; gap: 20px;",
+          div(
+            style = "text-align: center; padding: 20px; background: linear-gradient(135deg, #2c7da015 0%, #014f8615 100%); border-radius: 10px;",
+            div(style = "font-size: 32px; font-weight: 700; color: #2c7da0;", num_raters),
+            div(style = "font-size: 14px; color: #718096; margin-top: 5px;", "Total Raters")
           ),
-          tags$tr(
-            tags$td(style = "padding: 8px; border-bottom: 1px solid #eee;", strong("Krapfen Types:")),
-            tags$td(style = "padding: 8px; border-bottom: 1px solid #eee; text-align: right;", num_krapfen)
+          div(
+            style = "text-align: center; padding: 20px; background: linear-gradient(135deg, #2c7da015 0%, #014f8615 100%); border-radius: 10px;",
+            div(style = "font-size: 32px; font-weight: 700; color: #014f86;", num_krapfen),
+            div(style = "font-size: 14px; color: #718096; margin-top: 5px;", "Krapfen Types")
           ),
-          tags$tr(
-            tags$td(style = "padding: 8px; border-bottom: 1px solid #eee;", strong("Background Ratings:")),
-            tags$td(style = "padding: 8px; border-bottom: 1px solid #eee; text-align: right;", total_ratings)
+          div(
+            style = "text-align: center; padding: 20px; background: linear-gradient(135deg, #2c7da015 0%, #014f8615 100%); border-radius: 10px;",
+            div(style = "font-size: 32px; font-weight: 700; color: #2c7da0;", total_ratings),
+            div(style = "font-size: 14px; color: #718096; margin-top: 5px;", "Background Ratings")
           ),
-          tags$tr(
-            tags$td(style = "padding: 8px;", strong("Expert Ratings:")),
-            tags$td(style = "padding: 8px; text-align: right;", num_expert_ratings)
+          div(
+            style = "text-align: center; padding: 20px; background: linear-gradient(135deg, #2c7da015 0%, #014f8615 100%); border-radius: 10px;",
+            div(style = "font-size: 32px; font-weight: 700; color: #014f86;", num_expert_ratings),
+            div(style = "font-size: 14px; color: #718096; margin-top: 5px;", "Expert Ratings")
           )
         )
       )
@@ -156,32 +346,36 @@ server <- function(input, output, session) {
     sidebarLayout(
       sidebarPanel(
         width = 2,
-        helpText("Explore correlations and average ratings of different Krapfen."),
-        br(),
+        style = "background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.07);",
+        div(
+          style = "text-align: center; margin-bottom: 20px; padding: 15px; background: linear-gradient(135deg, #2c7da015 0%, #014f8615 100%); border-radius: 8px;",
+          div(style = "font-size: 24px; margin-bottom: 5px;", "👤"),
+          div(style = "font-weight: 600; color: #2d3748;", current_rater())
+        ),
+        p("Explore correlations and average ratings of different Krapfen.", style = "color: #718096; font-size: 14px; text-align: center;"),
+        hr(style = "border-color: #e2e8f0;"),
         actionButton(
           inputId = "back_to_rating_btn",
-          label = paste("Back to Rating (", current_rater(), ")", sep = ""),
+          label = "📝 Rate All Krapfen",
           class = "btn-secondary",
-          style = "width: 100%;"
+          style = "width: 100%; margin-bottom: 10px; padding: 10px;"
         ),
-        br(),
-        br(),
         actionButton(
           inputId = "rate_single_btn",
-          label = "I want to rate a Krapfen I've tasted",
+          label = "🍩 Rate Single Krapfen",
           class = "btn-success",
-          style = "width: 100%;"
+          style = "width: 100%; margin-bottom: 10px; padding: 10px;"
         ),
-        br(),
-        br(),
+        hr(style = "border-color: #e2e8f0;"),
         actionButton(
           inputId = "logout_btn",
-          label = "Logout",
+          label = "🚪 Logout",
           class = "btn-danger",
-          style = "width: 100%;"
+          style = "width: 100%; padding: 10px;"
         )
       ),
       mainPanel(
+        style = "background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 6px rgba(0,0,0,0.07);",
         tabsetPanel(
           tabPanel(
             "Krapfen Similarity",
@@ -273,14 +467,16 @@ server <- function(input, output, session) {
     
     # Show different message based on whether user exists or not
     if (current_rater() %in% existing) {
-      intro_text <- p(
-        style = "color: #28a745; font-weight: bold;",
-        "Welcome back! You've already rated before. Your ratings are saved."
+      intro_text <- div(
+        style = "padding: 20px; background: #c6f6d5; border-radius: 12px; margin-bottom: 25px; text-align: center;",
+        p(style = "color: #22543d; font-weight: 600; margin: 0; font-size: 16px;", 
+          "✅ Welcome back! You've already rated before. Your ratings are saved.")
       )
     } else {
-      intro_text <- p(
-        style = "color: #007bff; font-weight: bold;",
-        "Welcome! How would you think these Krapfen taste based on how they look and sound? Please rate each Krapfen on a scale of 1-10."
+      intro_text <- div(
+        style = "padding: 20px; background: linear-gradient(135deg, #2c7da015 0%, #014f8615 100%); border-radius: 12px; margin-bottom: 25px; text-align: center;",
+        p(style = "color: #2d3748; font-weight: 600; margin: 0; font-size: 16px;",
+          "🍩 Welcome! How would you think these Krapfen taste based on how they look and sound? Please rate each Krapfen on a scale of 1-10.")
       )
     }
     
@@ -295,7 +491,7 @@ server <- function(input, output, session) {
       }
       
       div(
-        style = "margin-bottom: 30px; padding: 15px; border: 1px solid #ddd; border-radius: 5px;",
+        class = "rating-card",
         div(
           style = "display: flex; gap: 20px; align-items: flex-start;",
           div(
@@ -304,12 +500,12 @@ server <- function(input, output, session) {
               src = img_path,
               width = "150px",
               height = "150px",
-              style = "border-radius: 5px; object-fit: cover;"
+              style = "border-radius: 12px; object-fit: cover; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"
             )
           ),
           div(
             style = "flex-grow: 1;",
-            h4(k),
+            h4(k, style = "color: #2d3748; margin-top: 0;"),
             sliderInput(
               inputId = paste0("rating_", gsub(" ", "_", k)),
               label = "Rating (1-10):",
@@ -338,9 +534,9 @@ server <- function(input, output, session) {
     buttons <- list(
       actionButton(
         inputId = "submit_ratings",
-        label = "Submit Ratings",
+        label = "✓ Submit Ratings",
         class = "btn-primary",
-        style = "padding: 10px 20px; font-size: 16px;"
+        style = "padding: 12px 24px; font-size: 16px;"
       )
     )
     
@@ -348,77 +544,90 @@ server <- function(input, output, session) {
     if (!is_new_user() || new_user_submitted()) {
       buttons[[2]] <- actionButton(
         inputId = "view_results_btn",
-        label = "View Results",
+        label = "📊 View Results",
         class = "btn-info",
-        style = "padding: 10px 20px; font-size: 16px; margin-left: 10px;"
+        style = "padding: 12px 24px; font-size: 16px; margin-left: 10px;"
       )
     }
     
     # Add logout button
     buttons[[length(buttons) + 1]] <- actionButton(
       inputId = "cancel_ratings",
-      label = "Logout",
+      label = "🚪 Logout",
       class = "btn-secondary",
-      style = "padding: 10px 20px; font-size: 16px; margin-left: 10px;"
+      style = "padding: 12px 24px; font-size: 16px; margin-left: 10px;"
     )
     
     div(
       style = "padding: 20px;",
-      h3(paste("Rate Krapfen as", current_rater())),
-      uiOutput("rating_inputs"),
-      br(),
-      do.call(tagList, buttons),
-      div(id = "submit_message", style = "margin-top: 20px;")
+      div(
+        class = "stats-card",
+        style = "max-width: 900px; margin: 0 auto; padding: 30px;",
+        h3(paste("🍩 Rate Krapfen as", current_rater()), style = "color: #2d3748; margin-top: 0; text-align: center;"),
+        uiOutput("rating_inputs"),
+        br(),
+        div(
+          style = "text-align: center;",
+          do.call(tagList, buttons)
+        ),
+        div(id = "submit_message", style = "margin-top: 20px;")
+      )
     )
   })
   
   output$single_rating_page <- renderUI({
     r <- copy(rating_data())
     if(current_rater() %in% r$Rater){
-      krapfen_choices <- colnames(r)[which(is.na(r[Rater == current_rater()]))]  
+      krapfen_choices <- colnames(r)[which(is.na(r[Rater == current_rater()]))]
     }else{
       krapfen_choices <- krapfen_names()
     }
     
     div(
-      style = "max-width: 800px; margin: 0 auto; padding: 30px;",
-      h3("Rate a Krapfen you've tried 🍩"),
-      
-      # Show existing ratings plot
-      plotOutput("user_ratings_plot", height = "300px"),
-      
-      br(),
-      
-      pickerInput(
-        "single_krapfen",
-        "Select Krapfen:",
-        choices = krapfen_choices,
-        options = list(`live-search` = TRUE)
-      ),
-      
-      sliderInput(
-        "single_score",
-        "Your rating:",
-        min = 1, max = 10, value = 5, step = 1
-      ),
-      
-      br(),
-      
-      actionButton(
-        "submit_single_rating",
-        "Submit rating",
-        class = "btn-primary"
-      ),
-      
-      br(), br(),
-      
-      actionButton(
-        "cancel_single_rating",
-        "Back",
-        class = "btn-secondary"
-      ),
-      
-      div(id = "single_submit_msg", style = "margin-top: 15px;")
+      style = "padding: 20px;",
+      div(
+        class = "stats-card",
+        style = "max-width: 800px; margin: 0 auto; padding: 40px;",
+        h3("Rate a Krapfen you've tried 🍩", style = "text-align: center; color: #2d3748; margin-top: 0;"),
+        
+        # Show existing ratings plot
+        plotOutput("user_ratings_plot", height = "300px"),
+        
+        br(),
+        
+        pickerInput(
+          "single_krapfen",
+          "Select Krapfen:",
+          choices = krapfen_choices,
+          options = list(`live-search` = TRUE)
+        ),
+        
+        sliderInput(
+          "single_score",
+          "Your rating:",
+          min = 1, max = 10, value = 5, step = 1
+        ),
+        
+        br(),
+        
+        div(
+          style = "text-align: center;",
+          actionButton(
+            "submit_single_rating",
+            "✓ Submit rating",
+            class = "btn-primary",
+            style = "padding: 12px 24px; font-size: 16px;"
+          ),
+          actionButton(
+            "cancel_single_rating",
+            "← Back",
+            class = "btn-secondary",
+            style = "padding: 12px 24px; font-size: 16px; margin-left: 10px;"
+          )
+        ),
+        
+        div(id = "single_submit_msg", style = "margin-top: 20px;")
+      )
     )
   })
   
