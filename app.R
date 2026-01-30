@@ -340,7 +340,11 @@ server <- function(input, output, session) {
   
   output$single_rating_page <- renderUI({
     r <- copy(rating_data())
-    krapfen_choices <- colnames(r)[which(is.na(r[Rater == current_rater()]))]
+    if(current_rater() %in% r$Rater){
+      krapfen_choices <- colnames(r)[which(is.na(r[Rater == current_rater()]))]  
+    }else{
+      krapfen_choices <- krapfen_names()
+    }
     
     div(
       style = "max-width: 800px; margin: 0 auto; padding: 30px;",
