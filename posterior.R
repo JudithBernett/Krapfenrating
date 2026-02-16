@@ -55,28 +55,40 @@ ML_estimate <- function(survey_data) {
 
 # ----- A posteriori probability function -----
 get_a_posteriori <- function(survey_data, expert_opinion) {
+  # Remove NAs from both survey_data and expert_opinion
+  survey_data <- survey_data[!is.na(survey_data)]
+  expert_opinion <- expert_opinion[!is.na(expert_opinion)]
+  
+  # If no expert scores, return prior distribution
+  if (length(expert_opinion) == 0) {
+    mle <- ML_estimate(survey_data)
+    return(function(s) bin(s, mle))
+  }
+  
   mle <- ML_estimate(survey_data)
-  s1 <- expert_opinion[1]
-  s2 <- expert_opinion[2]
   
   a_posteriori <- function(s) {
-    # Probability of event given s
-    p_judith_s1_given_s <- bin(s1, s / 10)
-    p_alex_s2_given_s <- bin(s2, s / 10)
-    p_event_given_s <- p_judith_s1_given_s * p_alex_s2_given_s
+    # Probability of all expert observations given s
+    p_experts_given_s <- prod(sapply(expert_opinion, function(score) {
+      bin(score, s / 10)
+    }))
     
     # Prior for s
     p_s <- bin(s, mle)
     
-    # Probability of event
-    p_person_s_given_i <- function(s, i) bin(s, i / 10)
+    # Probability of all expert observations (marginalizing over all possible true scores)
+    p_person_score_given_i <- function(score, i) bin(score, i / 10)
     p_i <- function(i) bin(i, mle)
-    p_event <- sum(sapply(0:10, function(i) {
-      p_person_s_given_i(s1, i) * p_person_s_given_i(s2, i) * p_i(i)
+    p_experts <- sum(sapply(0:10, function(i) {
+      # Probability of all expert scores given this potential true score i
+      prob_all_experts <- prod(sapply(expert_opinion, function(score) {
+        p_person_score_given_i(score, i)
+      }))
+      prob_all_experts * p_i(i)
     }))
     
     # Posterior
-    p_event_given_s * (p_s / p_event)
+    p_experts_given_s * (p_s / p_experts)
   }
   
   return(a_posteriori)
@@ -88,8 +100,11 @@ expected_value <- function(p_arr) {
   sum(x * p_arr)
 }
 
-# ----- Comparison plot -----
-plot_comparison <- function(survey_data, expert_opinion) {
+get_posteriori_df <- function(survey_data, expert_opinion) {
+  # Remove NAs from both
+  survey_data <- survey_data[!is.na(survey_data)]
+  expert_opinion <- expert_opinion[!is.na(expert_opinion)]
+  
   mle <- ML_estimate(survey_data)
   prio <- Bin(mle)
   
@@ -114,6 +129,12 @@ plot_comparison <- function(survey_data, expert_opinion) {
       )
     )
   }))
+  df
+}
+
+# ----- Comparison plot -----
+plot_comparison <- function(survey_data, expert_opinion) {
+  df <- get_posteriori_df(survey_data, expert_opinion)
   # Plot using ggplot with facets
   df[, Distribution := factor(Distribution, levels = c("post", "prio", "expe"))]
   ggplot(df, aes(x = Score, y = Probability, fill = Distribution, color = Distribution)) +
