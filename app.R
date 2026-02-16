@@ -1343,7 +1343,9 @@ server <- function(input, output, session) {
     
     # Cluster rows (raters)
     if (nrow(rating_matrix) > 1 & cluster) {
-      row_dist <- dist(rating_matrix, method = "euclidean")
+      cluster_matrix <- rating_matrix
+      cluster_matrix[is.na(cluster_matrix)] <- 0
+      row_dist <- dist(cluster_matrix, method = "euclidean")
       row_clust <- hclust(row_dist, method = "ward.D2")
       row_order <- row_clust$order
     } else {
@@ -1352,7 +1354,9 @@ server <- function(input, output, session) {
     
     # Cluster columns (krapfen)
     if (ncol(rating_matrix) > 1 & cluster) {
-      col_dist <- dist(t(rating_matrix), method = "euclidean")
+      cluster_matrix <- rating_matrix
+      cluster_matrix[is.na(cluster_matrix)] <- 0
+      col_dist <- dist(t(cluster_matrix), method = "euclidean")
       col_clust <- hclust(col_dist, method = "ward.D2")
       col_order <- col_clust$order
     } else {
@@ -1417,7 +1421,7 @@ server <- function(input, output, session) {
   # --- Rating heatmap post -------------------------------------------------------
   output$ratingHeatmapPost <- renderPlot({
     b <- copy(rating_data())
-    plot_rating_heatmap(b, cluster = FALSE)
+    plot_rating_heatmap(b, cluster = TRUE)
   })
   
   plot_krapfen_scatter <- function(df, annotation) {
