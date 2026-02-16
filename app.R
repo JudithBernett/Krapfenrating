@@ -1504,8 +1504,8 @@ server <- function(input, output, session) {
       result <- df[, .(
         Rating_Type = fcase(
           grepl("^A priori", Title), "Avg. pre-tasting rating",
-          grepl("^A posteriori", Title), "Avg. tasting rating",
-          default = "Updated rating"
+          grepl("^A posteriori", Title), "Updated rating",
+          default = "Avg. tasting rating"
         ),
         Score = as.numeric(sub(".*Expected Score = ", "", Title))
       )]
@@ -1514,8 +1514,7 @@ server <- function(input, output, session) {
     }
     all_results_df <- rbindlist(all_results)
     # order according to updated rating
-     all_results_df[, Krapfen := factor(Krapfen, levels = all_results_df[Rating_Type == "Updated rating"][order(-Score)]$Krapfen)]
-    
+    all_results_df[, Krapfen := factor(Krapfen, levels = all_results_df[Rating_Type == "Updated rating"][order(-Score)]$Krapfen)]
     ggplot(all_results_df, aes(x = Krapfen, y = Score, color = Rating_Type)) +
       geom_point(size = 3) +
       scale_color_manual(values = c("Avg. pre-tasting rating" = "#2a9d8f", 
